@@ -28,6 +28,7 @@ extern const retro_logo_image header_wsv;
 extern const retro_logo_image header_gen;
 extern const retro_logo_image header_a7800;
 extern const retro_logo_image header_amstrad;
+
 extern const retro_logo_image pad_sg1000;
 extern const retro_logo_image pad_col;
 extern const retro_logo_image pad_gb;

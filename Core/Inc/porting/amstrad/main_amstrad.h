@@ -4,9 +4,6 @@
 #define CPC_SCREEN_WIDTH 384
 #define CPC_SCREEN_HEIGHT 272
 
-#define AMSTRAD_WIDTH  384
-#define AMSTRAD_HEIGHT 272
-
 extern uint8_t amstrad_framebuffer[];
 
 // COMPUTER/EMU STATUS
