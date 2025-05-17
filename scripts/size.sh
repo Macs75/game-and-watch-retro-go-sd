@@ -64,9 +64,7 @@ print_usage ram_emu_md __RAM_EMU_LENGTH__
 print_usage ram_emu_a2600  __RAM_EMU_LENGTH__
 print_usage ram_emu_a7800  __RAM_EMU_LENGTH__
 print_usage ram_emu_amstrad  __RAM_EMU_LENGTH__
-print_usage ram_emu_zelda3  __RAM_EMU_LENGTH__
-print_simple_usage rodata_zelda3
-print_usage ram_emu_smw  __RAM_EMU_LENGTH__
+print_usage ram_emu_snes  __RAM_EMU_LENGTH__
 print_usage ram_emu_videopac  __RAM_EMU_LENGTH__
 print_usage ram_emu_celeste  __RAM_EMU_LENGTH__
 print_usage ram_emu_tama __RAM_EMU_LENGTH__

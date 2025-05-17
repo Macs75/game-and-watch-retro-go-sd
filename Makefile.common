@@ -517,12 +517,11 @@ C_INCLUDES +=  \
 -ICore/Inc/porting/a2600 \
 -ICore/Inc/porting/a7800 \
 -ICore/Inc/porting/amstrad \
--ICore/Inc/porting/zelda3 \
--ICore/Inc/porting/smw \
 -ICore/Inc/porting/videopac \
 -ICore/Inc/porting/celeste \
 -ICore/Inc/porting/tama \
 -ICore/Inc/porting/pkmini \
+-ICore/Inc/porting/snes \
 -ICore/Inc/retro-go \
 -IDrivers/STM32H7xx_HAL_Driver/Inc \
 -IDrivers/STM32H7xx_HAL_Driver/Inc/Legacy \
@@ -610,14 +609,13 @@ MD_OBJECTS = $(addprefix $(BUILD_DIR)/md/,$(notdir $(MD_C_SOURCES:.c=.o)))
 A2600_OBJECTS = $(addprefix $(BUILD_DIR)/a2600/,$(notdir $(A2600_C_SOURCES:.c=.o)))
 A7800_OBJECTS = $(addprefix $(BUILD_DIR)/a7800/,$(notdir $(A7800_C_SOURCES:.c=.o)))
 AMSTRAD_OBJECTS = $(addprefix $(BUILD_DIR)/amstrad/,$(notdir $(AMSTRAD_C_SOURCES:.c=.o)))
-ZELDA3_OBJECTS = $(addprefix $(BUILD_DIR)/zelda3/,$(notdir $(ZELDA3_C_SOURCES:.c=.o)))
-SMW_OBJECTS = $(addprefix $(BUILD_DIR)/smw/,$(notdir $(SMW_C_SOURCES:.c=.o)))
 VIDEOPAC_OBJECTS = $(addprefix $(BUILD_DIR)/videopac/,$(notdir $(VIDEOPAC_C_SOURCES:.c=.o)))
 CELESTE_OBJECTS = $(addprefix $(BUILD_DIR)/celeste/,$(notdir $(CELESTE_C_SOURCES:.c=.o)))
 TAMA_OBJECTS = $(addprefix $(BUILD_DIR)/tama/,$(notdir $(TAMA_C_SOURCES:.c=.o)))
 PKMINI_OBJECTS = $(addprefix $(BUILD_DIR)/pkmini/,$(notdir $(PKMINI_C_SOURCES:.c=.o)))
+SNES_OBJECTS = $(addprefix $(BUILD_DIR)/snes/,$(notdir $(SNES_C_SOURCES:.c=.o)))
 
-vpath %.c $(sort $(dir $(C_SOURCES) $(FATFS_C_SOURCES) $(NES_C_SOURCES) $(NES_FCEU_C_SOURCES) $(TGBDUAL_C_SOURCES) $(TGBDUAL_C_SOURCES) $(SMSPLUSGX_C_SOURCES) $(PCE_C_SOURCES) $(MSX_C_SOURCES) $(GW_C_SOURCES) $(WSV_C_SOURCES) $(MD_C_SOURCES) $(A2600_C_SOURCES) $(A7800_C_SOURCES) $(AMSTRAD_C_SOURCES) $(ZELDA3_C_SOURCES) $(SMW_C_SOURCES) $(VIDEOPAC_C_SOURCES) $(CELESTE_C_SOURCES) $(TAMA_C_SOURCES) $(PKMINI_C_SOURCES) $(SDK_C_SOURCES)))
+vpath %.c $(sort $(dir $(C_SOURCES) $(FATFS_C_SOURCES) $(NES_C_SOURCES) $(NES_FCEU_C_SOURCES) $(TGBDUAL_C_SOURCES) $(TGBDUAL_C_SOURCES) $(SMSPLUSGX_C_SOURCES) $(PCE_C_SOURCES) $(MSX_C_SOURCES) $(GW_C_SOURCES) $(WSV_C_SOURCES) $(MD_C_SOURCES) $(A2600_C_SOURCES) $(A7800_C_SOURCES) $(AMSTRAD_C_SOURCES) $(VIDEOPAC_C_SOURCES) $(CELESTE_C_SOURCES) $(TAMA_C_SOURCES) $(PKMINI_C_SOURCES) $(SNES_C_SOURCES) $(SDK_C_SOURCES)))
 
 MAPPER_SRCS := $(wildcard external/fceumm-go/src/boards/*.c)
 MAPPER_SRCS := $(filter-out external/fceumm-go/src/boards/__%.c, $(MAPPER_SRCS))
@@ -721,9 +719,9 @@ $(BUILD_DIR)/%.o: %.s Makefile.common Makefile | $(BUILD_DIR)
 	$(V)$(ECHO) [ AS ] $(notdir $<)
 	$(V)$(AS) -c $(CFLAGS) $< -o $@
 
-$(BUILD_DIR)/$(TARGET).elf: $(OBJECTS) $(FATFS_OBJECTS) $(A2600_OBJECTS) $(A7800_OBJECTS) $(NES_OBJECTS) $(NES_FCEU_OBJECTS) $(TGBDUAL_OBJECTS) $(SMSPLUSGX_OBJECTS) $(PCE_OBJECTS) $(MSX_OBJECTS) $(GW_OBJECTS) $(WSV_OBJECTS) $(MD_OBJECTS) $(AMSTRAD_OBJECTS) $(VIDEOPAC_OBJECTS) $(CELESTE_OBJECTS) $(CXX_OBJECTS) $(TGBDUAL_CXX_OBJECTS) $(A2600_CXX_OBJECTS) $(ZELDA3_OBJECTS) $(SMW_OBJECTS) $(TAMA_OBJECTS) $(PKMINI_OBJECTS) Makefile.common Makefile PrepareFceummMappers $(LDSCRIPT)
+$(BUILD_DIR)/$(TARGET).elf: $(OBJECTS) $(FATFS_OBJECTS) $(A2600_OBJECTS) $(A7800_OBJECTS) $(NES_OBJECTS) $(NES_FCEU_OBJECTS) $(TGBDUAL_OBJECTS) $(SMSPLUSGX_OBJECTS) $(PCE_OBJECTS) $(MSX_OBJECTS) $(GW_OBJECTS) $(WSV_OBJECTS) $(MD_OBJECTS) $(AMSTRAD_OBJECTS) $(VIDEOPAC_OBJECTS) $(CELESTE_OBJECTS) $(CXX_OBJECTS) $(TGBDUAL_CXX_OBJECTS) $(A2600_CXX_OBJECTS) $(TAMA_OBJECTS) $(PKMINI_OBJECTS) $(SNES_OBJECTS) Makefile.common Makefile PrepareFceummMappers $(LDSCRIPT)
 	$(V)$(ECHO) [ LD ] $(notdir $@)
-	$(V)$(CC) $(OBJECTS) $(FATFS_OBJECTS) $(A2600_OBJECTS) $(A7800_OBJECTS) $(NES_OBJECTS) $(NES_FCEU_OBJECTS) $(TGBDUAL_OBJECTS) $(SMSPLUSGX_OBJECTS) $(PCE_OBJECTS) $(MSX_OBJECTS) $(GW_OBJECTS) $(WSV_OBJECTS) $(MD_OBJECTS) $(AMSTRAD_OBJECTS) $(VIDEOPAC_OBJECTS) $(CELESTE_OBJECTS) $(CXX_OBJECTS) $(TGBDUAL_CXX_OBJECTS) $(A2600_CXX_OBJECTS) $(ZELDA3_OBJECTS) $(SMW_OBJECTS) $(TAMA_OBJECTS) $(PKMINI_OBJECTS) $(LDFLAGS) -o $@
+	$(V)$(CC) $(OBJECTS) $(FATFS_OBJECTS) $(A2600_OBJECTS) $(A7800_OBJECTS) $(NES_OBJECTS) $(NES_FCEU_OBJECTS) $(TGBDUAL_OBJECTS) $(SMSPLUSGX_OBJECTS) $(PCE_OBJECTS) $(MSX_OBJECTS) $(GW_OBJECTS) $(WSV_OBJECTS) $(MD_OBJECTS) $(AMSTRAD_OBJECTS) $(VIDEOPAC_OBJECTS) $(CELESTE_OBJECTS) $(CXX_OBJECTS) $(TGBDUAL_CXX_OBJECTS) $(A2600_CXX_OBJECTS) $(TAMA_OBJECTS) $(PKMINI_OBJECTS) $(SNES_OBJECTS) $(LDFLAGS) -o $@
 ifeq ($(SD_CARD), 0)
 	$(V)./scripts/extflash_size.sh $@
 endif
@@ -800,6 +798,10 @@ $(BUILD_DIR)/pkmini/%.o: %.c Makefile.common Makefile $(SDK_HEADERS) | $(BUILD_D
 	$(V)$(ECHO) [ CC Pokemon Mini ] $(notdir $<)
 	$(V)$(CC) -c $(CFLAGS) $(PKMINI_C_INCLUDES) -Wa,-a,-ad,-alms=$(BUILD_DIR)/pkmini/$(notdir $(<:.c=.lst)) $< -o $@
 
+$(BUILD_DIR)/snes/%.o: %.c Makefile.common Makefile $(SDK_HEADERS) | $(BUILD_DIR)
+	$(V)$(ECHO) [ CC LakeSnes ] $(notdir $<)
+	$(V)$(CC) -c $(CFLAGS) -O3 -ffast-math $(SNES_C_INCLUDES) -Wa,-a,-ad,-alms=$(BUILD_DIR)/snes/$(notdir $(<:.c=.lst)) $< -o $@
+
 # CXX
 $(BUILD_DIR)/core/%.o: %.cpp Makefile Makefile.common $(SDK_HEADERS) | $(BUILD_DIR)
 	$(V)$(ECHO) [ CXX core ] $(notdir $<)
@@ -812,147 +814,6 @@ $(BUILD_DIR)/tgbdual/%.o: %.cpp Makefile Makefile.common $(SDK_HEADERS) | $(BUIL
 $(BUILD_DIR)/a2600/%.o: %.cxx Makefile Makefile.common $(SDK_HEADERS) | $(BUILD_DIR)
 	$(V)$(ECHO) [ CXX a2600 ] $(notdir $<)
 	$(V)$(CXX) -c $(CXXFLAGS) $(A2600_C_INCLUDES) -Wa,-a,-ad,-alms=$(BUILD_DIR)/a2600/$(notdir $(<:.cxx=.lst)) $< -o $@
-
-# Zelda3 configuration
-
-# Limit to 30 fps for improved stability
-ZELDA3_LIMIT_30FPS ?= 1
-
-# Increase UI speed (item menu, etc.)
-ZELDA3_FASTER_UI ?= 1
-
-# Display battery indicator in item menu
-ZELDA3_BATTERY_INDICATOR ?= 1
-
-# Item switch on L/R. Also allows reordering of items in inventory by pressing Y+direction.
-# Hold X, L, or R inside of the item selection screen to assign items to those buttons.
-# If X is reassigned, Select opens the map. Push Select while paused to save or quit.
-# When L or R are assigned items, those buttons will no longer cycle items.
-ZELDA3_FEATURE_SWITCH_LR ?= 0
-# Allow turning while dashing
-ZELDA3_FEATURE_TURN_WHILE_DASHING ?= 0
-# Allow mirror to be used to warp to the Dark World
-ZELDA3_FEATURE_MIRROR_TO_DARK_WORLD ?= 0
-# Collect items (like hearts) with sword instead of having to touch them
-ZELDA3_FEATURE_COLLECT_ITEMS_WITH_SWORD ?= 0
-# Level 2-4 sword can be used to break pots
-ZELDA3_FEATURE_BREAK_POTS_WITH_SWORD ?= 0
-# Disable the low health beep
-ZELDA3_FEATURE_DISABLE_LOW_HEALTH_BEEP ?= 0
-# Avoid waiting too much at the start
-ZELDA3_FEATURE_SKIP_INTRO_ON_KEYPRESS ?= 1
-# Display max rupees/bombs/arrows with orange/yellow color
-ZELDA3_FEATURE_SHOW_MAX_ITEMS_IN_YELLOW ?= 0
-# Allows up to four bombs active at a time instead of two.
-ZELDA3_FEATURE_MORE_ACTIVE_BOMBS ?= 0
-# Can carry 9999 rupees instead of 999
-ZELDA3_FEATURE_CARRY_MORE_RUPEES ?= 0
-# Enable various zelda bug fixes
-ZELDA3_FEATURE_MISC_BUG_FIXES ?= 0
-# Allow bird travel to be cancelled by hitting the X key
-ZELDA3_FEATURE_CANCEL_BIRD_TRAVEL ?= 0
-# Enable some more advanced zelda bugfixes that change game behavior
-ZELDA3_FEATURE_GAME_CHANGING_BUG_FIXES ?= 0
-# Enable this to limit the ItemSwitchLR item cycling to the first 4 items.
-ZELDA3_FEATURE_SWITCH_LR_LIMIT ?= 0
-
-ZELDA3_FEATURES := 0
-ZELDA3_FEATURES := $(shell echo "$$(( $(ZELDA3_FEATURES) | $(ZELDA3_FEATURE_SWITCH_LR) << 1 ))")
-ZELDA3_FEATURES := $(shell echo "$$(( $(ZELDA3_FEATURES) | $(ZELDA3_FEATURE_TURN_WHILE_DASHING) << 2 ))")
-ZELDA3_FEATURES := $(shell echo "$$(( $(ZELDA3_FEATURES) | $(ZELDA3_FEATURE_MIRROR_TO_DARK_WORLD) << 3 ))")
-ZELDA3_FEATURES := $(shell echo "$$(( $(ZELDA3_FEATURES) | $(ZELDA3_FEATURE_COLLECT_ITEMS_WITH_SWORD) << 4 ))")
-ZELDA3_FEATURES := $(shell echo "$$(( $(ZELDA3_FEATURES) | $(ZELDA3_FEATURE_BREAK_POTS_WITH_SWORD) << 5 ))")
-ZELDA3_FEATURES := $(shell echo "$$(( $(ZELDA3_FEATURES) | $(ZELDA3_FEATURE_DISABLE_LOW_HEALTH_BEEP) << 6 ))")
-ZELDA3_FEATURES := $(shell echo "$$(( $(ZELDA3_FEATURES) | $(ZELDA3_FEATURE_SKIP_INTRO_ON_KEYPRESS) << 7 ))")
-ZELDA3_FEATURES := $(shell echo "$$(( $(ZELDA3_FEATURES) | $(ZELDA3_FEATURE_SHOW_MAX_ITEMS_IN_YELLOW) << 8 ))")
-ZELDA3_FEATURES := $(shell echo "$$(( $(ZELDA3_FEATURES) | $(ZELDA3_FEATURE_MORE_ACTIVE_BOMBS) << 9 ))")
-ZELDA3_FEATURES := $(shell echo "$$(( $(ZELDA3_FEATURES) | $(ZELDA3_FEATURE_CARRY_MORE_RUPEES) << 11 ))")
-ZELDA3_FEATURES := $(shell echo "$$(( $(ZELDA3_FEATURES) | $(ZELDA3_FEATURE_MISC_BUG_FIXES) << 12 ))")
-ZELDA3_FEATURES := $(shell echo "$$(( $(ZELDA3_FEATURES) | $(ZELDA3_FEATURE_CANCEL_BIRD_TRAVEL) << 13 ))")
-ZELDA3_FEATURES := $(shell echo "$$(( $(ZELDA3_FEATURES) | $(ZELDA3_FEATURE_GAME_CHANGING_BUG_FIXES) << 14 ))")
-ZELDA3_FEATURES := $(shell echo "$$(( $(ZELDA3_FEATURES) | $(ZELDA3_FEATURE_SWITCH_LR_LIMIT) << 15 ))")
-
-# C defines for zelda3
-C_DEFS_ZELDA3 =  \
--DHEADLESS \
--DLIMIT_30FPS=$(ZELDA3_LIMIT_30FPS) \
--DFEATURES=$(ZELDA3_FEATURES) \
--DFASTER_UI=$(ZELDA3_FASTER_UI) \
--DBATTERY_INDICATOR=$(ZELDA3_BATTERY_INDICATOR) \
-
-# function used to generate prerequisite rules for zelda3 objects
-define zelda3_obj_prereq_gen
-$$(BUILD_DIR)/zelda3/$(patsubst %.c,%.o,$(notdir $1)): $1 Makefile.common Makefile $$(SDK_HEADERS) | $$(BUILD_DIR)
-	$$(V)$$(ECHO) [ CC zelda3 ] $$(notdir $$<)
-	$$(V)$$(CC) -c $$(CFLAGS) $$(C_DEFS_ZELDA3) $$(ZELDA3_C_INCLUDES)-Wa,-a,-ad,-alms=$$(BUILD_DIR)/zelda3/$$(notdir $$(<:.c=.lst)) $$< -o $$@ \
-	-Wno-parentheses -Wno-unknown-pragmas -Wno-incompatible-pointer-types -Wno-unused-const-variable -Wno-strict-aliasing -Wno-comment -Wno-unused-function -Wno-stack-usage -Wno-int-in-bool-context -Wno-unused-variable -Wno-unused-but-set-variable
-	$$(V)$$(CP) --redefine-syms=zelda3_redefines $$@
-
-endef
-# note: the blank line above is intentional
-
-# generate all zelda3 object prerequisite rules
-$(eval $(foreach obj,$(ZELDA3_C_SOURCES),$(call zelda3_obj_prereq_gen,$(obj))))
-
-# SMW configuration
-
-# Limit to 30 fps for improved stability
-SMW_LIMIT_30FPS ?= 1
-
-# Controller bindings
-# A physical button (or combination of buttons) is assigned for each SNES controller button
-# Each nibble represents a physical button assignment
-# Order of assignments (SNES buttons) from most-significant to least-significant nibble: Select,Start,A,B,X,Y,L,R
-# Values for physical buttons mapping: GAME modifier (MSB) + 3-bits physical button index (0=A, 1=B, 2=Select, 3=Start, 4=Time)
-# A value of 0xf means no assignment
-
-# Binding "A" for zelda consoles: Use Reserve Item: TIME / Pause Game: GAME + TIME / Spin Jump: A / Regular Jump: B / Dash/Shoot: SELECT or START / Scroll Left: GAME + B / Scroll Right: GAME + A
-SMW_BINDINGS_ZELDA_A = 0x4c012398
-# Binding "B" for zelda consoles: Use Reserve Item: TIME / Pause Game: START / Spin Jump: SELECT / Regular Jump: A / Dash/Shoot: B / Scroll Left: GAME + B / Scroll Right: GAME + A
-SMW_BINDINGS_ZELDA_B = 0x43201198
-# Binding "A" for mario consoles: Use Reserve Item: GAME + A / Pause Game: GAME + TIME / Spin Jump: A / Regular Jump: B / Dash/Shoot: TIME / Scroll Left: Unassigned / Scroll Right: Unassigned
-SMW_BINDINGS_MARIO_A = 0x8c0144ff
-# Binding "B" for mario consoles: Use Reserve Item: TIME / Pause Game: GAME + TIME / Spin Jump: GAME + A / Regular Jump: A / Dash/Shoot: B / Scroll Left: Unassigned / Scroll Right: Unassigned
-SMW_BINDINGS_MARIO_B = 0x4c8011ff
-
-# Replace with the binding of your choice
-ifeq ($(GNW_TARGET_ZELDA),1)
-	SMW_CONTROLLER_BINDINGS = $(SMW_BINDINGS_ZELDA_A)
-else
-	SMW_CONTROLLER_BINDINGS = $(SMW_BINDINGS_MARIO_B)
-endif
-
-# Save to SRAM after each beaten level (instead of saving after castle is beaten).
-# SRAM save remains valid/compatible with emulators.
-SMW_FEATURE_SAVE_AFTER_EACH_BEATEN_LEVEL ?= 0
-
-SMW_FEATURES := 0
-SMW_FEATURES := $(shell echo "$$(( $(SMW_FEATURES) | $(SMW_FEATURE_SAVE_AFTER_EACH_BEATEN_LEVEL) << 0 ))")
-
-# C defines for smw
-C_DEFS_SMW =  \
--DHEADLESS \
--DLIMIT_30FPS=$(SMW_LIMIT_30FPS) \
--DCONTROLLER_BINDINGS=$(SMW_CONTROLLER_BINDINGS) \
--DFEATURES=$(SMW_FEATURES) \
-
-# function used to generate prerequisite rules for smw objects
-define smw_obj_prereq_gen
-$$(BUILD_DIR)/smw/$(patsubst %.c,%.o,$(notdir $1)): $1 Makefile.common Makefile $$(SDK_HEADERS) | $$(BUILD_DIR)
-	$$(V)$$(ECHO) [ CC smw ] $$(notdir $$<)
-	$$(V)$$(CC) -c $$(CFLAGS) $$(C_DEFS_SMW) $$(SMW_C_INCLUDES) -Wa,-a,-ad,-alms=$$(BUILD_DIR)/smw/$$(notdir $$(<:.c=.lst)) $$< -o $$@ \
-	-Wno-parentheses -Wno-unknown-pragmas -Wno-unused-variable -Wno-unused-but-set-variable -Wno-unused-const-variable -Wno-int-in-bool-context -Wno-unused-value -Wno-unused-function -Wno-incompatible-pointer-types -Wno-implicit-function-declaration -Wno-format -Wno-array-bounds -Wno-strict-aliasing -Wno-maybe-uninitialized
-	$$(V)$$(CP) --redefine-syms=smw_redefines $$@
-
-endef
-# note: the blank line above is intentional
-
-# generate all smw object prerequisite rules
-$(eval $(foreach obj,$(SMW_C_SOURCES),$(call smw_obj_prereq_gen,$(obj))))
-
-external/smw/smw_assets.dat: roms/smw/smw.sfc | $(BUILD_DIR)
-	cp $< external/smw/assets/smw.sfc
-	$(MAKE) -C external/smw smw_assets.dat
 
 $(BUILD_DIR):
 	$(V)mkdir $@
@@ -971,12 +832,11 @@ $(BUILD_DIR):
 	$(V)mkdir $@/a2600
 	$(V)mkdir $@/a7800
 	$(V)mkdir $@/amstrad
-	$(V)mkdir $@/zelda3
-	$(V)mkdir $@/smw
 	$(V)mkdir $@/videopac
 	$(V)mkdir $@/celeste
 	$(V)mkdir $@/tama
 	$(V)mkdir $@/pkmini
+	$(V)mkdir $@/snes
 
 #######################################
 # Flashing
@@ -1091,10 +951,8 @@ create_sd_data: create_sd_folders $(MAPPER_BINS) $(BUILD_DIR)/$(TARGET)_intflash
 	@$(CP) -O binary --only-section=.overlay_videopac $(BUILD_DIR)/$(TARGET).elf $(CORES_DIR)/videopac.bin
 	@$(CP) -O binary --only-section=.overlay_tama $(BUILD_DIR)/$(TARGET).elf $(CORES_DIR)/tama.bin
 	@$(CP) -O binary --only-section=.overlay_pkmini $(BUILD_DIR)/$(TARGET).elf $(CORES_DIR)/pkmini.bin
+	@$(CP) -O binary --only-section=.overlay_snes $(BUILD_DIR)/$(TARGET).elf $(CORES_DIR)/snes.bin
 	@$(CP) -O binary --only-section=.overlay_celeste $(BUILD_DIR)/$(TARGET).elf $(HOMEBREWS_FOLDER)/celeste.bin
-	@$(CP) -O binary --only-section=.overlay_zelda3 $(BUILD_DIR)/$(TARGET).elf "$(HOMEBREWS_FOLDER)/Zelda 3.bin"
-	@$(CP) -O binary --only-section=.rodata_zelda3 $(BUILD_DIR)/$(TARGET).elf "$(HOMEBREWS_FOLDER)/zelda3.ro"
-	@$(CP) -O binary --only-section=.overlay_smw $(BUILD_DIR)/$(TARGET).elf "$(HOMEBREWS_FOLDER)/Super Mario World.bin"
 	@$(CP) -O binary --only-section=.coleco_bios_data $(BUILD_DIR)/$(TARGET).elf $(SD_FOLDER)/bios/coleco/coleco.bin
 	@$(CP) -O binary --only-section=.overlay_graphics $(BUILD_DIR)/$(TARGET).elf $(CORES_DIR)/logo.bin
 	@$(CP) -O binary --only-section=.sd_fonts_cp1251_greybeard $(BUILD_DIR)/$(TARGET).elf $(FONTS_DIR)/cp1251_greybeard.bin
@@ -1121,31 +979,7 @@ create_sd_data: create_sd_folders $(MAPPER_BINS) $(BUILD_DIR)/$(TARGET)_intflash
 flash_sd: CheckTools CheckDirtySubmodules $(BUILD_DIR)/$(TARGET)_intflash.bin create_sd_data
 	$(eval MAPPERS_SDPUSH := $(foreach mapper,$(MAPPER_NAMES),-- sdpush --file $(MAPPERS_DIR)/mapper_$(mapper).bin --dest-path "/cores/mappers/"))
 	@$(GNWMANAGER) flash $(INTFLASH_ADDRESS) $(BUILD_DIR)/$(TARGET)_intflash.bin \
-		-- sdpush --file $(CORES_DIR)/nes.bin --dest-path "/cores/" \
-		-- sdpush --file $(CORES_DIR)/nes_fceu.bin --dest-path "/cores/" \
-		-- sdpush --file $(CORES_DIR)/tgb.bin --dest-path "/cores/" \
-		-- sdpush --file $(CORES_DIR)/sms.bin --dest-path "/cores/" \
-		-- sdpush --file $(CORES_DIR)/pce.bin --dest-path "/cores/" \
-		-- sdpush --file $(CORES_DIR)/msx.bin --dest-path "/cores/" \
-		-- sdpush --file $(CORES_DIR)/wsv.bin --dest-path "/cores/" \
-		-- sdpush --file $(CORES_DIR)/gw.bin --dest-path "/cores/" \
-		-- sdpush --file $(CORES_DIR)/md.bin --dest-path "/cores/" \
-		-- sdpush --file $(CORES_DIR)/a2600.bin --dest-path "/cores/" \
-		-- sdpush --file $(CORES_DIR)/a7800.bin --dest-path "/cores/" \
-		-- sdpush --file $(CORES_DIR)/amstrad.bin --dest-path "/cores/" \
-		-- sdpush --file $(CORES_DIR)/videopac.bin --dest-path "/cores/" \
-		-- sdpush --file $(CORES_DIR)/tama.bin --dest-path "/cores/" \
-		-- sdpush --file $(CORES_DIR)/pkmini.bin --dest-path "/cores/" \
-		-- sdpush --file $(CORES_DIR)/logo.bin --dest-path "/cores/" \
-		-- sdpush --file $(HOMEBREWS_FOLDER)/celeste.bin --dest-path "/roms/homebrew/" \
-		-- sdpush --file "$(HOMEBREWS_FOLDER)/Super Mario World.bin" --dest-path "/roms/homebrew/" \
-		-- sdpush --file "$(HOMEBREWS_FOLDER)/Zelda 3.bin" --dest-path "/roms/homebrew/" \
-		-- sdpush --file "$(HOMEBREWS_FOLDER)/zelda3.ro" --dest-path "/roms/homebrew/" \
-		-- sdpush --file $(MAPPERS_DIR)/mappers_table.bin --dest-path "/cores/mappers/" \
-		-- sdpush --file $(MAPPERS_DIR)/ines_correct.bin --dest-path "/cores/mappers/" \
-		-- sdpush --file $(SD_FOLDER)/bios/nes/palettes.bin --dest-path "/bios/nes/" \
-		-- sdpush --file $(SD_FOLDER)/bios/coleco/coleco.bin --dest-path "/bios/coleco" \
-		$(MAPPERS_SDPUSH) \
+		-- sdpush --file $(CORES_DIR)/snes.bin --dest-path "/cores/" \
 		-- start $(INTFLASH_ADDRESS) \
 		$(RESET_DBGMCU_CMD)
 
@@ -1323,8 +1157,6 @@ clean:
 	$(V)-rm -fR $(BUILD_DIR)
 	$(V)-rm -fR $(SD_FOLDER)
 	$(V)-rm -fR $(RELEASE_FOLDER)
-	$(V)$(MAKE) -C external/zelda3 clean
-	$(V)$(MAKE) -C external/smw clean
 	$(V)@$(MAKE) -C external/firmware_update clean
 
 distclean: clean

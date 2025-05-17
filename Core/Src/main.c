@@ -473,7 +473,7 @@ int main(void)
   switch (boot_mode) {
   case BOOT_MODE_APP:
   case BOOT_MODE_WARM:
-    wdog_enable();
+//    wdog_enable();
     // Launch the emulator
     app_main(boot_mode);
     break;

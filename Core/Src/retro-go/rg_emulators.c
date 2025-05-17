@@ -24,13 +24,12 @@
 #include "main_gwenesis.h"
 #include "main_a7800.h"
 #include "main_amstrad.h"
-#include "main_zelda3.h"
-#include "main_smw.h"
 #include "main_videopac.h"
 #include "main_celeste.h"
 #include "main_tama.h"
 #include "main_pkmini.h"
 #include "main_a2600.h"
+#include "main_snes.h"
 #include "rg_rtc.h"
 #include "heap.hpp"
 #include "gw_flash.h"
@@ -48,7 +47,7 @@ static retro_emulator_file_t *shared_files = NULL;
 #define COVERFLOW 0
 #endif /* COVERFLOW */
 // Increase when adding new emulators
-#define MAX_EMULATORS 17
+#define MAX_EMULATORS 18
 static retro_emulator_t emulators[MAX_EMULATORS];
 static rom_system_t systems[MAX_EMULATORS];
 static int emulators_count = 0;
@@ -773,14 +772,6 @@ void emulator_start(retro_emulator_file_t *file, bool load_state, bool start_pau
             memset(&_OVERLAY_CELESTE_BSS_START, 0x0, (size_t)&_OVERLAY_CELESTE_BSS_SIZE);
             SCB_CleanDCache_by_Addr((uint32_t *)&__RAM_EMU_START__, (size_t)&_OVERLAY_CELESTE_SIZE);
             app_main_celeste(load_state, start_paused, save_slot);
-        } else if (strcmp(newfile->name,"Zelda 3") == 0) {
-            memset(&_OVERLAY_ZELDA3_BSS_START, 0x0, (size_t)&_OVERLAY_ZELDA3_BSS_SIZE);
-            SCB_CleanDCache_by_Addr((uint32_t *)&__RAM_EMU_START__, (size_t)&_OVERLAY_ZELDA3_SIZE);
-            app_main_zelda3(load_state, start_paused, save_slot);
-        } else if (strcmp(newfile->name,"Super Mario World") == 0) {
-            memset(&_OVERLAY_SMW_BSS_START, 0x0, (size_t)&_OVERLAY_SMW_BSS_SIZE);
-            SCB_CleanDCache_by_Addr((uint32_t *)&__RAM_EMU_START__, (size_t)&_OVERLAY_SMW_SIZE);
-            app_main_smw(load_state, start_paused, save_slot);
         }
 #if 0
         uint32_t* ram_start = (uint32_t *)&__RAM_EMU_START__;
@@ -807,6 +798,12 @@ void emulator_start(retro_emulator_file_t *file, bool load_state, bool start_pau
         SCB_CleanDCache_by_Addr((uint32_t *)&__RAM_EMU_START__, (size_t)&_OVERLAY_PKMINI_SIZE);
         app_main_pkmini(load_state, start_paused, save_slot);
       }
+    } else if(strcmp(system_name, "Super Nintendo Entertainment System") == 0) {
+      if (odroid_overlay_cache_file_in_ram("/cores/snes.bin", (uint8_t *)&__RAM_EMU_START__)) {
+        memset(&_OVERLAY_SNES_BSS_START, 0x0, (size_t)&_OVERLAY_SNES_BSS_SIZE);
+        SCB_CleanDCache_by_Addr((uint32_t *)&__RAM_EMU_START__, (size_t)&_OVERLAY_SNES_SIZE);
+        app_main_snes(load_state, start_paused, save_slot);
+      }
     }
 
 #if CHEAT_CODES == 1
@@ -831,6 +828,7 @@ void emulator_start(retro_emulator_file_t *file, bool load_state, bool start_pau
 
 void emulators_init()
 {
+    add_emulator("Super Nintendo Entertainment System", "snes", "snes sfc", RG_LOGO_EMPTY, RG_LOGO_HEADER_HOMEBREW, NO_GAME_DATA);
     add_emulator("Nintendo Gameboy", "gb", "gb gbc", RG_LOGO_PAD_GB, RG_LOGO_HEADER_GB, NO_GAME_DATA);
     add_emulator("Nintendo Gameboy Color", "gbc", "gb gbc", RG_LOGO_PAD_GB, RG_LOGO_HEADER_GBC, NO_GAME_DATA);
     add_emulator("Nintendo Entertainment System", "nes", "nes fds nsf", RG_LOGO_PAD_NES, RG_LOGO_HEADER_NES, NO_GAME_DATA);

@@ -490,62 +490,6 @@ INCLUDE build/fceumm_mappers.ld
   }
   _OVERLAY_AMSTRAD_BSS_SIZE = SIZEOF(.overlay_amstrad_bss);
 
-  .overlay_zelda3 __RAM_EMU_START__ : {
-    . = ALIGN(4);
-    __ram_emu_zelda3_start__ = .;
-    _ZELDA3_MAIN_CODE_START = .;
-    build/zelda3/main_zelda3.o (.data .data* .text .text* .rodata .rodata*)
-    _ZELDA3_MAIN_CODE_END = .;
-    build/zelda3/*.o (.data .data* .text .text* .noreloc)
-    . = ALIGN(4);
-    _OVERLAY_ZELDA3_LOAD_END = .;
-  } AT > CORES
-  _OVERLAY_ZELDA3_LOAD_START = LOADADDR(.overlay_zelda3);
-  _OVERLAY_ZELDA3_SIZE = SIZEOF(.overlay_zelda3);
-
-  .overlay_zelda3_bss _OVERLAY_ZELDA3_LOAD_END : {
-    . = ALIGN(4);
-    _OVERLAY_ZELDA3_BSS_START = .;
-    build/zelda3/*.o (.bss .bss*)
-    . = ALIGN(4);
-    build/zelda3/*.o (COMMON)
-    __ram_emu_zelda3_end__ = .;
-    _OVERLAY_ZELDA3_BSS_END = .;
-    ASSERT(ABSOLUTE(_OVERLAY_ZELDA3_BSS_END) < __RAM_EMU_END__, "Error: ZELDA3 BSS overflow");
-  }
-  _OVERLAY_ZELDA3_BSS_SIZE = SIZEOF(.overlay_zelda3_bss);
-
-  .rodata_zelda3 :
-  {
-    . = ALIGN(4);
-    . = ALIGN(4);
-    __rodata_zelda3_start__ = .;
-    build/zelda3/*.o (.rodata .rodata*)
-    __rodata_zelda3_end__ = .;
-  } > RODATA
-
-  .overlay_smw __RAM_EMU_START__ : {
-    . = ALIGN(4);
-    __ram_emu_smw_start__ = .;
-    build/smw/*.o (.data .data* .text .text* .rodata .rodata*)
-    . = ALIGN(4);
-    _OVERLAY_SMW_LOAD_END = .;
-  } AT > CORES
-  _OVERLAY_SMW_LOAD_START = LOADADDR(.overlay_smw);
-  _OVERLAY_SMW_SIZE = SIZEOF(.overlay_smw);
-
-  .overlay_smw_bss _OVERLAY_SMW_LOAD_END : {
-    . = ALIGN(4);
-    _OVERLAY_SMW_BSS_START = .;
-    build/smw/*.o (.bss .bss*)
-    . = ALIGN(4);
-    build/smw/*.o (COMMON)
-    __ram_emu_smw_end__ = .;
-    _OVERLAY_SMW_BSS_END = .;
-    ASSERT(ABSOLUTE(_OVERLAY_SMW_BSS_END) < __RAM_EMU_END__, "Error: SMW BSS overflow");
-  }
-  _OVERLAY_SMW_BSS_SIZE = SIZEOF(.overlay_smw_bss);
-
   .overlay_videopac __RAM_EMU_START__ : {
     . = ALIGN(4);
     __ram_emu_videopac_start__ = .;
@@ -633,6 +577,28 @@ INCLUDE build/fceumm_mappers.ld
     ASSERT(ABSOLUTE(_OVERLAY_PKMINI_BSS_END) < __RAM_EMU_END__, "Error: PKMINI BSS overflow");
   }
   _OVERLAY_PKMINI_BSS_SIZE = SIZEOF(.overlay_pkmini_bss);
+
+  .overlay_snes __RAM_EMU_START__ : {
+    . = ALIGN(4);
+    __ram_emu_snes_start__ = .;
+    build/snes/*.o (.data .data* .text .text* .rodata .rodata*)
+    . = ALIGN(4);
+    _OVERLAY_SNES_LOAD_END = .;
+  } AT > CORES
+  _OVERLAY_SNES_LOAD_START = LOADADDR(.overlay_snes);
+  _OVERLAY_SNES_SIZE = SIZEOF(.overlay_snes);
+
+  .overlay_snes_bss _OVERLAY_SNES_LOAD_END : {
+    . = ALIGN(4);
+    _OVERLAY_SNES_BSS_START = .;
+    build/snes/*.o (.bss .bss*)
+    . = ALIGN(4);
+    build/snes/*.o (COMMON)
+    __ram_emu_snes_end__ = .;
+    _OVERLAY_SNES_BSS_END = .;
+    ASSERT(ABSOLUTE(_OVERLAY_SNES_BSS_END) < __RAM_EMU_END__, "Error: SNES BSS overflow");
+  }
+  _OVERLAY_SNES_BSS_SIZE = SIZEOF(.overlay_snes_bss);
 
   .overlay_graphics : {
     . = ALIGN(4);

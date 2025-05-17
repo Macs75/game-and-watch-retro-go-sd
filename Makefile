@@ -488,6 +488,25 @@ retro-go-stm32/smsplusgx-go/components/smsplus/sound/sms_sound.c \
 retro-go-stm32/smsplusgx-go/components/smsplus/sound/ym2413.c \
 Core/Src/porting/smsplusgx/main_smsplusgx.c
 
+
+CORE_SNES = external/LakeSnes-go
+
+SNES_C_SOURCES = \
+$(CORE_SNES)/snes/snes_apu.c \
+$(CORE_SNES)/snes/snes_cart.c \
+$(CORE_SNES)/snes/snes_cpu.c \
+$(CORE_SNES)/snes/snes_cx4.c \
+$(CORE_SNES)/snes/snes_dma.c \
+$(CORE_SNES)/snes/snes_dsp.c \
+$(CORE_SNES)/snes/snes_input.c \
+$(CORE_SNES)/snes/snes_ppu.c \
+$(CORE_SNES)/snes/snes_other.c \
+$(CORE_SNES)/snes/snes.c \
+$(CORE_SNES)/snes/snes_spc.c \
+$(CORE_SNES)/snes/snes_statehandler.c \
+Core/Src/porting/snes/main_snes.c
+
+
 PCE_C_SOURCES = 
 
 PCE_C_SOURCES += \
@@ -794,67 +813,6 @@ $(CORE_CCLESTE)/celeste.c \
 $(CORE_CCLESTE)/celeste_audio.c \
 Core/Src/porting/celeste/main_celeste.c
 
-CORE_ZELDA3 = external/zelda3
-ZELDA3_C_SOURCES = \
-$(CORE_ZELDA3)/zelda_rtl.c \
-$(CORE_ZELDA3)/misc.c \
-$(CORE_ZELDA3)/nmi.c \
-$(CORE_ZELDA3)/poly.c \
-$(CORE_ZELDA3)/attract.c \
-$(CORE_ZELDA3)/snes/ppu.c \
-$(CORE_ZELDA3)/snes/dma.c \
-$(CORE_ZELDA3)/spc_player.c \
-$(CORE_ZELDA3)/util.c \
-$(CORE_ZELDA3)/audio.c \
-$(CORE_ZELDA3)/overworld.c \
-$(CORE_ZELDA3)/ending.c \
-$(CORE_ZELDA3)/select_file.c \
-$(CORE_ZELDA3)/dungeon.c \
-$(CORE_ZELDA3)/messaging.c \
-$(CORE_ZELDA3)/hud.c \
-$(CORE_ZELDA3)/load_gfx.c \
-$(CORE_ZELDA3)/ancilla.c \
-$(CORE_ZELDA3)/player.c \
-$(CORE_ZELDA3)/sprite.c \
-$(CORE_ZELDA3)/player_oam.c \
-$(CORE_ZELDA3)/snes/dsp.c \
-$(CORE_ZELDA3)/sprite_main.c \
-$(CORE_ZELDA3)/tagalong.c \
-$(CORE_ZELDA3)/third_party/opus-1.3.1-stripped/opus_decoder_amalgam.c \
-$(CORE_ZELDA3)/tile_detect.c \
-$(CORE_ZELDA3)/overlord.c \
-Core/Src/porting/zelda3/main_zelda3.c
-
-CORE_SMW = external/smw
-SMW_C_SOURCES = \
-$(CORE_SMW)/src/smw_rtl.c \
-$(CORE_SMW)/src/smw_00.c \
-$(CORE_SMW)/src/smw_01.c \
-$(CORE_SMW)/src/smw_02.c \
-$(CORE_SMW)/src/smw_03.c \
-$(CORE_SMW)/src/smw_04.c \
-$(CORE_SMW)/src/smw_05.c \
-$(CORE_SMW)/src/smw_07.c \
-$(CORE_SMW)/src/smw_0c.c \
-$(CORE_SMW)/src/smw_0d.c \
-$(CORE_SMW)/src/smw_cpu_infra.c \
-$(CORE_SMW)/src/smw_spc_player.c \
-$(CORE_SMW)/src/config.c \
-$(CORE_SMW)/src/common_rtl.c \
-$(CORE_SMW)/src/common_cpu_infra.c \
-$(CORE_SMW)/src/util.c \
-$(CORE_SMW)/src/lm.c \
-$(CORE_SMW)/src/snes/ppu.c \
-$(CORE_SMW)/src/snes/dma.c \
-$(CORE_SMW)/src/snes/dsp.c \
-$(CORE_SMW)/src/snes/apu.c \
-$(CORE_SMW)/src/snes/spc.c \
-$(CORE_SMW)/src/snes/snes.c \
-$(CORE_SMW)/src/snes/cpu.c \
-$(CORE_SMW)/src/snes/cart.c \
-$(CORE_SMW)/src/tracing.c \
-Core/Src/porting/smw/main_smw.c
-
 GNUBOY_C_INCLUDES +=  \
 -ICore/Inc \
 -ICore/Src/porting/lib \
@@ -1018,24 +976,6 @@ VIDEOPAC_C_INCLUDES +=  \
 -I$(CORE_O2EM)/allegrowrapper \
 -I./
 
-ZELDA3_C_INCLUDES +=  \
--ICore/Inc \
--ICore/Src/porting/lib \
--ICore/Src/porting/lib/lzma \
--Iretro-go-stm32/components/odroid \
--I$(CORE_ZELDA3)/ \
--Iexternal \
--I./
-
-SMW_C_INCLUDES +=  \
--ICore/Inc \
--ICore/Src/porting/lib \
--ICore/Src/porting/lib/lzma \
--Iretro-go-stm32/components/odroid \
--I$(CORE_SMW)/ \
--Iexternal \
--I./
-
 CELESTE_C_INCLUDES +=  \
 -ICore/Inc \
 -ICore/Src/porting/lib \
@@ -1061,12 +1001,20 @@ PKMINI_C_INCLUDES +=  \
 -I$(CORE_PKMINI)/libretro/libretro-common/include \
 -I./
 
+SNES_C_INCLUDES +=  \
+-ICore/Inc \
+-ICore/Src/porting/lib \
+-Iretro-go-stm32/components/odroid \
+-I$(CORE_SNES) \
+-I$(CORE_SNES)/snes \
+-I./
+
 include Makefile.common
 
 
 $(BUILD_DIR)/$(TARGET)_extflash.bin: $(BUILD_DIR)/$(TARGET).elf | $(BUILD_DIR)
 	$(V)$(ECHO) [ BIN ] $(notdir $@)
-	$(V)$(BIN) -j ._itcram_hot -j ._ram_exec -j ._extflash -j .overlay_nes -j .overlay_nes_fceu -j .overlay_gb -j .overlay_tgb -j .overlay_sms -j .overlay_col -j .overlay_pce -j .overlay_msx -j .overlay_gw -j .overlay_wsv -j .overlay_md -j .overlay_a2600 -j .overlay_a7800 -j .overlay_amstrad -j .overlay_zelda3 -j .overlay_smw -j .overlay_videopac -j .overlay_celeste -j .overlay_tama -j .overlay_pkmini $< $(BUILD_DIR)/$(TARGET)_extflash.bin
+	$(V)$(BIN) -j ._itcram_hot -j ._ram_exec -j ._extflash -j .overlay_nes -j .overlay_nes_fceu -j .overlay_gb -j .overlay_tgb -j .overlay_sms -j .overlay_col -j .overlay_pce -j .overlay_msx -j .overlay_gw -j .overlay_wsv -j .overlay_md -j .overlay_a2600 -j .overlay_a7800 -j .overlay_amstrad -j .overlay_videopac -j .overlay_celeste -j .overlay_tama -j .overlay_pkmini -j .overlay_snes $< $(BUILD_DIR)/$(TARGET)_extflash.bin
 
 $(BUILD_DIR)/$(TARGET)_intflash.bin: $(BUILD_DIR)/$(TARGET).elf | $(BUILD_DIR)
 	$(V)$(ECHO) [ BIN ] $(notdir $@)
