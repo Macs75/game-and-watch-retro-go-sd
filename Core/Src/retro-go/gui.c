@@ -940,8 +940,8 @@ void gui_draw_coverflow_h(tab_t *tab) //------------
     listbox_item_t *item = &list->items[list->cursor];
     retro_emulator_file_t *file = NULL;
     int font_height = i18n_get_text_height();
-    int cover_height = emu->cover_height;
-    int cover_width = emu->cover_width;
+    uint32_t cover_height = emu->cover_height;
+    uint32_t cover_width = emu->cover_width;
     if (cover_height == 0 || cover_width == 0)
     {
         if (item)
@@ -1203,8 +1203,8 @@ void gui_draw_coverflow_v(tab_t *tab, int start_posx) // ||||||||
     listbox_t *list = &tab->listbox;
     listbox_item_t *item = &list->items[list->cursor];
     retro_emulator_file_t *file = NULL;
-    int cover_height = emu->cover_height;
-    int cover_width = emu->cover_width;
+    uint32_t cover_height = emu->cover_height;
+    uint32_t cover_width = emu->cover_width;
     int space_height = 40;
     uint32_t jpeg_cover_width = cover_width;
     uint32_t jpeg_cover_height = cover_height;

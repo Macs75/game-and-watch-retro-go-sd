@@ -15,6 +15,7 @@
 #include "common.h"
 #include "rom_manager.h"
 #include "gw_lcd.h"
+#include "gw_ofw.h"
 #include "rg_i18n.h"
 
 #include <assert.h>

@@ -324,11 +324,13 @@ int main(void)
     __NOP();
   }
 
+#if SD_CARD == 0
   // Nullpointer redzone
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wnonnull"
   memset(0x0, '\x41', (size_t)&__NULLPTR_LENGTH__);
 #pragma GCC diagnostic pop
+#endif
 
   // Don't reset the logbuf when rebooting from a watchdog reset
   if (boot_magic != BOOT_MAGIC_WATCHDOG) {
@@ -1324,7 +1326,7 @@ int __builtin_popcount (unsigned int x);
 
 /* MPU Configuration */
 
-void MPU_Config(void)
+__attribute__((optimize("-O0"))) static void MPU_Config(void)
 {
   MPU_Region_InitTypeDef MPU_InitStruct = {0};
 

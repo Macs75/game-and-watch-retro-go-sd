@@ -1497,7 +1497,7 @@ size_t odroid_overlay_cache_file_in_ram(const char *file_path, uint8_t *dest_add
         lcd_swap();
     }
 
-    return rg_storage_copy_file_to_ram(file_path, dest_address, progress_cb);
+    return rg_storage_copy_file_to_ram((char *)file_path, dest_address, progress_cb);
 }
 
 #endif

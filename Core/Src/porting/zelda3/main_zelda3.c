@@ -8,7 +8,8 @@
 #include "gw_linker.h"
 #include "gw_buttons.h"
 #include "gw_malloc.h"
-#include "lzma.h"
+#include "gw_ofw.h"
+
 #include "bq24072.h"
 
 #include "stm32h7xx_hal.h"
