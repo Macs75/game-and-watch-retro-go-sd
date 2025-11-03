@@ -279,12 +279,12 @@ static void blend_frames_16(uInt8 *stella_fb, int width, int height)
 
 static void sound_store()
 {
+    uint32_t tiaSamplesPerFrame = (uint32_t)(AUDIO_A2600_SAMPLE_RATE / console->getFramerate());
+    osystem.sound().processFragment(sampleBuffer, tiaSamplesPerFrame);
+
     if (common_emu_sound_loop_is_muted()) {
         return;
     }
-
-    uint32_t tiaSamplesPerFrame = (uint32_t)(AUDIO_A2600_SAMPLE_RATE / console->getFramerate());
-    osystem.sound().processFragment(sampleBuffer, tiaSamplesPerFrame);
 
     int32_t factor = common_emu_sound_get_volume() / 2; // Divide by 2 to prevent overflow in stereo mixing
     int16_t *audio_in_buf = sampleBuffer;
