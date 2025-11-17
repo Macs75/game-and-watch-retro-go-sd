@@ -1,9 +1,14 @@
 # Changelog
 
+This release is dedicated to Kaki, my beloved cat who passed away today far too soon. Kaki, I will love you forever — I miss you terribly.
+
 ## What's New
 
-### Version 0.8.0
-- Retro-Go SD is now also compatible with Mario hardware
+### Version 1.0.0
+- Fix incorrect colors in the sd missing screen on Zelda devices
+- Fix Atari 2600 crash when sound is muted
+- Fix MSX .mcf (bluemsx) cheat codes file support
+- Updated ARM GNU toolchain for compilation to v14.3.Rel1
 
 ## Prerequisites
 To install this version, make sure you have:
