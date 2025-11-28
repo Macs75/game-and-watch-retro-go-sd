@@ -19,28 +19,11 @@ jobs:
         with:
           submodules: true  # Clone submodules with --recurse-submodules
 
-      # 2. Install necessary dependencies (binutils, Python, etc.)
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y binutils-arm-none-eabi python3 python3-pip libhidapi-hidraw0 libftdi1 libftdi1-2 make git wget
-
-      # 3. Install the ARM compiler
-      - name: Install Arm GNU Toolchain (arm-none-eabi-gcc)
-        uses: carlosperate/arm-none-eabi-gcc-action@v1
-        with:
-          release: '14.3.Rel1'
-
-      # 4. Install Python dependencies from requirements.txt
-      - name: Install Python dependencies
-        run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip install -r requirements.txt
-
-      # 5. Generate the update archive
+      # 2. Generate the update archive using Docker
       - name: Generate gw_update.tar
         run: |
-          make -j$(nproc) COVERFLOW=1 SHARED_HIBERNATE_SAVESTATE=1 DISABLE_SPLASH_SCREEN=1 INTFLASH_BANK=2 CHEAT_CODES=1 release
+          docker run --rm -v ${{ github.workspace }}:/opt/workdir sylverb/retro-go-sd-builder \
+            bash -l -c "make -j\$$(nproc) CHECK_DIRTY_SUBMODULE=0 COVERFLOW=1 SHARED_HIBERNATE_SAVESTATE=1 DISABLE_SPLASH_SCREEN=1 INTFLASH_BANK=2 CHEAT_CODES=1 release"
 
   release-package:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
@@ -53,30 +36,13 @@ jobs:
         with:
           submodules: true  # Clone submodules with --recurse-submodules
 
-      # 2. Install necessary dependencies (binutils, Python, etc.)
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y binutils-arm-none-eabi python3 python3-pip libhidapi-hidraw0 libftdi1 libftdi1-2 make git wget
-
-      # 3. Install the ARM compiler
-      - name: Install Arm GNU Toolchain (arm-none-eabi-gcc)
-        uses: carlosperate/arm-none-eabi-gcc-action@v1
-        with:
-          release: '13.3.Rel1'
-
-      # 4. Install Python dependencies from requirements.txt
-      - name: Install Python dependencies
-        run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip install -r requirements.txt
-
-      # 5. Generate the update files
+      # 2. Generate the update files using Docker
       - name: Generate firmware_update.bin and gw_update.tar
         run: |
-          make -j$(nproc) COVERFLOW=1 SHARED_HIBERNATE_SAVESTATE=1 DISABLE_SPLASH_SCREEN=1 INTFLASH_BANK=2 CHEAT_CODES=1 release
+          docker run --rm -v ${{ github.workspace }}:/opt/workdir sylverb/retro-go-sd-builder \
+            bash -l -c "make -j\$$(nproc) CHECK_DIRTY_SUBMODULE=0 COVERFLOW=1 SHARED_HIBERNATE_SAVESTATE=1 DISABLE_SPLASH_SCREEN=1 INTFLASH_BANK=2 CHEAT_CODES=1 release"
 
-      # 6. Create a release and upload files
+      # 3. Create a release and upload files
       - name: Create Release
         uses: actions/create-release@v1
         id: create_release
@@ -89,7 +55,7 @@ jobs:
           draft: false
           prerelease: false
 
-      # 7. Add firmware update file as assets
+      # 4. Add firmware update file as assets
       - name: Upload retro-go_update.bin to Release
         uses: actions/upload-release-asset@v1
         env:
