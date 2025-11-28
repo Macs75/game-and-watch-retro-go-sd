@@ -20,10 +20,17 @@ jobs:
           submodules: true  # Clone submodules with --recurse-submodules
 
       # 2. Generate the update archive using Docker
-      - name: Generate gw_update.tar
+      - name: Generate retro-go_update.bin
         run: |
           docker run --rm --user $(id -u):$(id -g) -v ${{ github.workspace }}:/opt/workdir sylverb/retro-go-sd-builder \
             bash -l -c "make -j\$$(nproc) CHECK_DIRTY_SUBMODULE=0 COVERFLOW=1 SHARED_HIBERNATE_SAVESTATE=1 DISABLE_SPLASH_SCREEN=1 INTFLASH_BANK=2 CHEAT_CODES=1 release"
+
+      # 3. Upload retro-go_update.bin artifact
+      - name: Upload retro-go_update.bin artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gw-update
+          path: release/retro-go_update.bin
 
   release-package:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
