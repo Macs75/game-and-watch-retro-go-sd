@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <assert.h>
 #include "bitmaps.h"
 #include "gw_lcd.h"
 #include "gw_malloc.h"
@@ -7,14 +8,24 @@
 #define BIG_BANK 1
 #endif
 #if SD_CARD == 1
-#define LOGO_DATA __attribute__((section(".sdcard_logo")))
-#define GFX_DATA  __attribute__((section(".intflash_logo")))
+#define LOGO_DATA      __attribute__((section(".sdcard_logo")))
+#define GFX_DATA       __attribute__((section(".intflash_logo")))
+#define INT_LOGO_DATA  __attribute__((section(".intflash_logo")))
+#define INT_LOGO_COUNT 3
 #elif (BIG_BANK == 1) && (EXTFLASH_SIZE <= 16*1024*1024)
 #define LOGO_DATA __attribute__((section(".intflash_logo")))
 #define GFX_DATA  __attribute__((section(".intflash_logo")))
 #else
 #define LOGO_DATA __attribute__((section(".extflash_logo")))
 #define GFX_DATA  __attribute__((section(".extflash_logo")))
+#endif
+
+#ifndef INT_LOGO_DATA
+#define INT_LOGO_DATA LOGO_DATA
+#endif
+
+#ifndef INT_LOGO_COUNT
+#define INT_LOGO_COUNT 0
 #endif
 
 #if SD_CARD == 1
@@ -139,6 +150,20 @@ retro_logo_image *rg_get_logo(int16_t logo_index) {
     }
     return NULL;
 #else
+    // Logos always included in internal flash.
+    // Must be at beginning of the logo list.
+    switch (logo_index) {
+        case RG_LOGO_RGO:
+            return (retro_logo_image *)&logo_rgo;
+        case RG_LOGO_RGW:
+            return (retro_logo_image *)&logo_rgw;
+        case RG_LOGO_GNW:
+            return (retro_logo_image *)&logo_gnw;
+    }
+
+    static_assert(INT_LOGO_COUNT == 3);
+    logo_index -= INT_LOGO_COUNT;
+
     retro_logo_image *dest;
     int16_t *current_logo_ptr;
     if (logo_index >= RG_LOGO_HEADER_SG1000 && logo_index < RG_LOGO_PAD_SG1000) {
@@ -205,7 +230,7 @@ retro_logo_image *rg_get_logo(int16_t logo_index) {
 
 #pragma GCC push_options
 #pragma GCC optimize ("O0") // Prevents data order change
-const retro_logo_image logo_rgo LOGO_DATA = {
+const retro_logo_image logo_rgo INT_LOGO_DATA = {
     64,
     12,
     {
@@ -240,7 +265,7 @@ const retro_logo_image logo_rgo LOGO_DATA = {
         */
     },
 };
-const retro_logo_image logo_rgw LOGO_DATA = {
+const retro_logo_image logo_rgw INT_LOGO_DATA = {
     120,
     12,
     {
@@ -327,7 +352,7 @@ const retro_logo_image logo_flash LOGO_DATA = {
 };
 #endif
 
-const retro_logo_image logo_gnw LOGO_DATA = {
+const retro_logo_image logo_gnw INT_LOGO_DATA = {
     35,
     30,
     {
