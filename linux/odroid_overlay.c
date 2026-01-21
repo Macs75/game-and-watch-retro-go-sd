@@ -12,7 +12,7 @@ int odroid_overlay_game_debug_menu(void)
     return 0;
 }
 
-int odroid_overlay_game_menu(odroid_dialog_choice_t *extra_options, void_callback_t repaint)
+int odroid_overlay_game_menu(odroid_dialog_choice_t *extra_options, void_callback_t repaint, odroid_menu_flags_t flags)
 {
     return 0;
 }

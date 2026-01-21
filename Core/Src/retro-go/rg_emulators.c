@@ -345,7 +345,7 @@ static bool show_cheat_dialog()
         choices[i].update_cb = cheat_update_cb;
     }
     choices[CHOSEN_FILE->cheat_count] = last;
-    odroid_overlay_dialog(curr_lang->s_Cheat_Codes_Title, choices, 0, NULL);
+    odroid_overlay_dialog(curr_lang->s_Cheat_Codes_Title, choices, 0, NULL, 0);
 
     rg_free(choices);
     odroid_settings_commit();
@@ -561,7 +561,7 @@ bool emulator_show_file_menu(retro_emulator_file_t *file)
         choices[4] = last;
 #endif
 
-    int sel = odroid_overlay_dialog(file->name, choices, has_save ? 0 : 1, &gui_redraw_callback);
+    int sel = odroid_overlay_dialog(file->name, choices, has_save ? 0 : 1, &gui_redraw_callback, 0);
 
     if (sel == 0) { // Resume game
         if (has_save) {

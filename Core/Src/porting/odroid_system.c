@@ -471,7 +471,7 @@ void odroid_system_switch_app(int app)
     }
 }
 
-runtime_stats_t odroid_system_get_stats()
+runtime_stats_t odroid_system_get_stats(bool reset_stats)
 {
     float tickTime = (get_elapsed_time() - counters.resetTime);
 
@@ -480,11 +480,13 @@ runtime_stats_t odroid_system_get_stats()
     statistics.skippedFPS = counters.skippedFrames / (tickTime / 1000.f);
     statistics.totalFPS = counters.totalFrames / (tickTime / 1000.f);
 
-    skip = 1;
-    counters.busyTime = 0;
-    counters.totalFrames = 0;
-    counters.skippedFrames = 0;
-    counters.resetTime = get_elapsed_time();
+    if (reset_stats) {
+        skip = 1;
+        counters.busyTime = 0;
+        counters.totalFrames = 0;
+        counters.skippedFrames = 0;
+        counters.resetTime = get_elapsed_time();
+    }
 
     return statistics;
 }

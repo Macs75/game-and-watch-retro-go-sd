@@ -123,6 +123,24 @@ static bool ingame_overlay_loop() {
     return false;
 }
 
+static void repaint_overlay(void_callback_t repaint) {
+    ingame_overlay_loop();
+    repaint();
+}
+
+static void open_pause_menu(odroid_dialog_choice_t *game_options, void_callback_t repaint, odroid_menu_flags_t flags) {
+    void _repaint() {
+        repaint_overlay(repaint);
+    }
+
+    int r = odroid_overlay_game_menu(game_options, _repaint, flags);
+    if ((flags & ODROID_MENU_FLAG_DRAW_ONLY) == 0) {
+        common_emu_state.pause_after_frames = 0;
+        common_emu_state.startup_frames = 0;
+        cpumon_stats.last_busy = 0;
+    }
+}
+
 /**
  * Common input/macro/menuing features inside all emu loops. This is to be called
  * after inputs are read into `joystick`, but before the actual emulation tick
@@ -140,8 +158,7 @@ void common_emu_input_loop(odroid_gamepad_state_t *joystick, odroid_dialog_choic
     static uint8_t clear_frames = 0;
 
     void _repaint() {
-        ingame_overlay_loop();
-        repaint();
+        repaint_overlay(repaint);
     }
 
     if(joystick->values[ODROID_INPUT_VOLUME]){  // PAUSE/SET button
@@ -327,11 +344,8 @@ void common_emu_input_loop(odroid_gamepad_state_t *joystick, odroid_dialog_choic
         // PAUSE/SET has been released without performing any macro. Launch menu
         pause_pressed = false;
 
-        odroid_overlay_game_menu(game_options, _repaint);
+        open_pause_menu(game_options, _repaint, 0);
         clear_frames = 2;
-
-        common_emu_state.startup_frames = 0;
-        cpumon_stats.last_busy = 0;
     }
     else if (!joystick->values[ODROID_INPUT_VOLUME]){
         pause_pressed = false;
@@ -364,6 +378,7 @@ void common_emu_input_loop(odroid_gamepad_state_t *joystick, odroid_dialog_choic
     }
 
     if (common_emu_state.pause_after_frames > 0) {
+        open_pause_menu(game_options, _repaint, ODROID_MENU_FLAG_DRAW_ONLY);
         (common_emu_state.pause_after_frames)--;
         if (common_emu_state.pause_after_frames == 0) {
             pause_pressed = true;

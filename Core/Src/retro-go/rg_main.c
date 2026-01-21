@@ -397,7 +397,7 @@ static void GLOBAL_DATA handle_debug_menu()
             {0, curr_lang->s_Close, "", 1, NULL},
             ODROID_DIALOG_CHOICE_LAST};
 
-    odroid_overlay_dialog(curr_lang->s_Debug_Title, debuginfo, -1, &gui_redraw_callback);
+    odroid_overlay_dialog(curr_lang->s_Debug_Title, debuginfo, -1, &gui_redraw_callback, 0);
     odroid_settings_commit();
 }
 
@@ -423,7 +423,7 @@ static void GLOBAL_DATA handle_about_menu()
             ODROID_DIALOG_CHOICE_LAST};
 
     snprintf(dialog_title, sizeof(dialog_title), curr_lang->s_Retro_Go, GIT_TAG);
-    int sel = odroid_overlay_dialog(dialog_title, choices, -1, &gui_redraw_callback);
+    int sel = odroid_overlay_dialog(dialog_title, choices, -1, &gui_redraw_callback, 0);
     if (sel == 1)
     {
         // Reset settings
@@ -480,11 +480,13 @@ static void GLOBAL_DATA handle_options_menu()
         choices[ofw_boot_index].enabled = 1;
         choices[ofw_boot_index].update_cb = NULL;
     }
-    int r = odroid_overlay_settings_menu(choices, &gui_redraw_callback);
-    if (r == 9)
+#endif
+    int r = odroid_overlay_settings_menu(choices, &gui_redraw_callback, 0);
+    switch (r) {
+#if INTFLASH_BANK == 2
+        case 9:
         soft_reset_do();
-#else
-    odroid_overlay_settings_menu(choices, &gui_redraw_callback);
+        break;
 #endif
 }
 
@@ -497,7 +499,7 @@ static void GLOBAL_DATA handle_time_menu()
             {0, curr_lang->s_Time, time_str, 1, &time_display_cb},
             {1, curr_lang->s_Date, date_str, 1, &date_display_cb},
             ODROID_DIALOG_CHOICE_LAST};
-    int sel = odroid_overlay_dialog(curr_lang->s_Time_Title, rtcinfo, 0, &gui_redraw_callback);
+    int sel = odroid_overlay_dialog(curr_lang->s_Time_Title, rtcinfo, 0, &gui_redraw_callback, 0);
 
     if (sel == 0)
     {
@@ -511,7 +513,7 @@ static void GLOBAL_DATA handle_time_menu()
                 {1, curr_lang->s_Minute, minute_value, 1, &minute_update_cb},
                 {2, curr_lang->s_Second, second_value, 1, &second_update_cb},
                 ODROID_DIALOG_CHOICE_LAST};
-        sel = odroid_overlay_dialog(curr_lang->s_Time_setup, timeoptions, 0, &gui_redraw_callback);
+        sel = odroid_overlay_dialog(curr_lang->s_Time_setup, timeoptions, 0, &gui_redraw_callback, 0);
     }
     else if (sel == 1)
     {
@@ -528,7 +530,7 @@ static void GLOBAL_DATA handle_time_menu()
                 {0, curr_lang->s_Day, day_value, 1, &day_update_cb},
                 {-1, curr_lang->s_Weekday, weekday_value, 0, &weekday_update_cb},
                 ODROID_DIALOG_CHOICE_LAST};
-        sel = odroid_overlay_dialog(curr_lang->s_Date_setup, dateoptions, 0, &gui_redraw_callback);
+        sel = odroid_overlay_dialog(curr_lang->s_Date_setup, dateoptions, 0, &gui_redraw_callback, 0);
     }
 }
 
