@@ -21,6 +21,8 @@ bool fs_mounted = false;
 static FRESULT cause;
 
 void sdcard_error_screen(void) {
+    lcd_backlight_set(180);
+    
     char buf[64];
     int idle_s = uptime_get();
 
