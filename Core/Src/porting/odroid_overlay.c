@@ -1497,9 +1497,10 @@ void odroid_overlay_draw_progress_bar(const char *header, uint8_t progress)
 
 uint8_t *odroid_overlay_cache_file_in_flash(const char *file_path, uint32_t *file_size_p, bool byte_swap)
 {
-    void progress_cb(uint8_t progress)
+    void progress_cb(uint32_t total_size, uint32_t total_processed, uint8_t progress)
     {
-        lcd_sleep_while_swap_pending();
+        if (lcd_is_swap_pending())
+            return;
 
         odroid_overlay_draw_progress_bar(curr_lang->s_Caching_Game, progress);
 
@@ -1514,9 +1515,15 @@ uint8_t *odroid_overlay_cache_file_in_flash(const char *file_path, uint32_t *fil
 
 size_t odroid_overlay_cache_file_in_ram(const char *file_path, uint8_t *dest_address)
 {
-    void progress_cb(uint8_t progress)
+    void progress_cb(uint32_t total_size, uint32_t total_processed, uint8_t progress)
     {
-        lcd_sleep_while_swap_pending();
+        // Don't show for progress for small files to reduce jank
+        if (total_size < 320 * 1024) {
+            return;
+        }
+
+        if (lcd_is_swap_pending())
+            return;
 
         odroid_overlay_draw_progress_bar(curr_lang->s_Loading_Ram, progress);
 
