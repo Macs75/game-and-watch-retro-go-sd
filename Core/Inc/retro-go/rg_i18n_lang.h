@@ -172,6 +172,8 @@ typedef struct
     const char *s_Type;
     const char *s_Size;
     const char *s_Close;
+    const char *s_Delete_Rom_File;
+    const char *s_Delete_Rom_File_Confirm;
     const char *s_GameProp;
     const char *s_Resume_game;
     const char *s_New_game;
