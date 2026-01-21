@@ -465,9 +465,8 @@ static void GLOBAL_DATA handle_options_menu()
         {0, curr_lang->s_Idle_power_off, timeout_value, 1, &main_menu_timeout_cb},
         ODROID_DIALOG_CHOICE_SEPARATOR,
         {0, curr_lang->s_CPU_Overclock, ov_value, 1, &main_menu_cpu_oc_cb},
-#if INTFLASH_BANK == 2
-    //{9, curr_lang->s_Reboot, curr_lang->s_Original_system, 1, NULL},
-#endif
+        ODROID_DIALOG_CHOICE_SEPARATOR,
+        {10, curr_lang->s_Power_off, "", 1, NULL},
         ODROID_DIALOG_CHOICE_LAST, // Reserve space to dynamically add more options
         ODROID_DIALOG_CHOICE_LAST};
 #if INTFLASH_BANK == 2
@@ -488,6 +487,11 @@ static void GLOBAL_DATA handle_options_menu()
         soft_reset_do();
         break;
 #endif
+        case 10:
+        odroid_system_shutdown();
+        odroid_system_sleep_ex(SLEEP_ENTER_STANDBY | SLEEP_SHOW_LOGO | SLEEP_SHOW_ANIMATION | SLEEP_ANIMATION_SLOW, NULL);
+        break;
+    }
 }
 
 static void GLOBAL_DATA handle_time_menu()
@@ -715,8 +719,10 @@ void retro_loop()
                     odroid_system_switch_app(0);
                     return;
                 }
-                else
-                    odroid_system_sleep();
+                else {
+                    odroid_system_sleep_ex(SLEEP_ENTER_SLEEP_WITH_ANIMATION, NULL);
+                    gui_refresh_tab(tab);
+                }
             }
         }
         if (repeat > 0)
@@ -774,72 +780,110 @@ void GLOBAL_DATA app_start_logo()
 
 void GLOBAL_DATA app_logo()
 {
-    odroid_overlay_draw_fill_rect(0, 0, ODROID_SCREEN_WIDTH, ODROID_SCREEN_HEIGHT, curr_colors->bg_c);
-    retro_logo_image *logo;
+    void _draw_logos(int darken) {
+        odroid_overlay_draw_fill_rect(0, 0, ODROID_SCREEN_WIDTH, ODROID_SCREEN_HEIGHT, curr_colors->bg_c);
 
-    for (int i = 1; i <= 10; i++)
-    {
+        retro_logo_image *logo;
+
         logo = rg_get_logo(RG_LOGO_GNW);
         if (!logo)
             return;
-        odroid_overlay_draw_logo((ODROID_SCREEN_WIDTH - logo->width) / 2, 90, RG_LOGO_GNW, 
-            get_darken_pixel_d(curr_colors->sel_c, curr_colors->bg_c, i * 10));
+        odroid_overlay_draw_logo((ODROID_SCREEN_WIDTH - logo->width) / 2, 90, RG_LOGO_GNW,
+                                 get_darken_pixel_d(curr_colors->dis_c, curr_colors->bg_c, darken));
 
         logo = rg_get_logo(RG_LOGO_RGO);
         if (!logo)
             return;
-        odroid_overlay_draw_logo((ODROID_SCREEN_WIDTH - logo->width) / 2, 174, RG_LOGO_RGO, 
-           get_darken_pixel_d(curr_colors->dis_c,curr_colors->bg_c, i * 10));
+        odroid_overlay_draw_logo((ODROID_SCREEN_WIDTH - logo->width) / 2, 174, RG_LOGO_RGO,
+                                 get_darken_pixel_d(curr_colors->dis_c, curr_colors->bg_c, darken));
 
-        lcd_sync();
         lcd_swap();
-        wdog_refresh();
-        HAL_Delay(i * 2);
+        lcd_sleep_while_swap_pending();
+        lcd_wait_for_vblank();
     }
-    for (int i = 0; i < 20; i++)
-    {
+
+    _draw_logos(100);
+}
+
+void GLOBAL_DATA app_animate_lcd_brightness(uint8_t initial, uint8_t target, uint8_t step)
+{
+    const int step_delay = 5;
+    const int min_brightness = 120;
+    int current = initial;
+
+    if (target > current && current < min_brightness) {
+        current = min_brightness;
+    } else if (current > target && target < min_brightness) {
+        target = min_brightness;
+    }
+
+    lcd_backlight_set(current);
+    while (1) {
+        if (initial > target) {
+            current -= step;
+            if (current <= target) {
+                current = target;
+                break;
+            }
+        } else {
+            current += step;
+            if (current >= target) {
+                current = target;
+                break;
+            }
+        }
+
+        lcd_backlight_set(current);
         wdog_refresh();
-        HAL_Delay(10);
+        HAL_Delay(step_delay);
+    }
+
+    wdog_refresh();
+    if (current <= min_brightness) {
+        lcd_backlight_off();
+    } else {
+        lcd_backlight_set(current);
     }
 }
 
-void GLOBAL_DATA app_sleep_logo()
-{
-    retro_logo_image *logo;
-    // As we will use ram_alloc, make sure ram_start pointer is valid
-    if (ram_start == 0) {
-        ram_start = (uint32_t)&__RAM_EMU_START__;
-    }
-    for (int i = 10; i <= 100; i+=2)
-    {
+void GLOBAL_DATA app_sleep_transition(bool show_logo, bool slow) {
+    if (show_logo) {
+        retro_logo_image *logo;
+        // As we will use ram_alloc, make sure ram_start pointer is valid
+        if (ram_start == 0) {
+            ram_start = (uint32_t)&__RAM_EMU_START__;
+        }
+
         logo = rg_get_logo(RG_LOGO_GNW);
         if (!logo)
             return;
 
-        lcd_sleep_while_swap_pending();
         odroid_overlay_draw_fill_rect(0, 0, ODROID_SCREEN_WIDTH, ODROID_SCREEN_HEIGHT, curr_colors->bg_c);
-        odroid_overlay_draw_logo((ODROID_SCREEN_WIDTH - logo->width) / 2, 90, RG_LOGO_GNW,
-            get_darken_pixel_d(curr_colors->sel_c, curr_colors->bg_c, 110 - i));
+        odroid_overlay_draw_logo((ODROID_SCREEN_WIDTH - logo->width) / 2, 90, RG_LOGO_GNW, curr_colors->sel_c);
 
         logo = rg_get_logo(RG_LOGO_RGO);
         if (!logo)
             return;
 
-        odroid_overlay_draw_logo((ODROID_SCREEN_WIDTH - logo->width) / 2, 174, RG_LOGO_RGO, 
-           get_darken_pixel_d(curr_colors->dis_c,curr_colors->bg_c, 110 - i));
-
+        odroid_overlay_draw_logo((ODROID_SCREEN_WIDTH - logo->width) / 2, 174, RG_LOGO_RGO, curr_colors->dis_c);
         lcd_swap();
-        wdog_refresh();
-        HAL_Delay(i / 10);
+        lcd_sleep_while_swap_pending();
     }
+
+    // Make logo visible for more than a split second when powering off
+    if (slow) {
+        for (int i = 0; i < 30; i++) {
+            HAL_Delay(10);
+            wdog_refresh();
+        }
+    }
+
+    app_animate_lcd_brightness(odroid_display_get_backlight_raw(), 0, slow ? 1 : 2);
 }
 
 void GLOBAL_DATA app_main(uint8_t boot_mode)
 {
     lcd_set_buffers(framebuffer1, framebuffer2);
-    sdcard_init();
-    odroid_system_init(ODROID_APPID_LAUNCHER, 32000);
-    odroid_overlay_draw_fill_rect(0, 0, ODROID_SCREEN_WIDTH, ODROID_SCREEN_HEIGHT, curr_colors->bg_c);
 
     // if OFW is present, write "BOOT" to RTC backup register to always boot to Retro-Go
     // Check game_and_watch_patch project for more details
@@ -856,24 +900,18 @@ void GLOBAL_DATA app_main(uint8_t boot_mode)
     // Initialize GUI colors based on OFW type
     gui_init_colors();
 
+    sdcard_init();
     if (fs_mounted == false) {
         sdcard_error_screen();
     }
 
     // Re-initialize system now that the filesystem is mounted
-    // and apply the correct CPU overclocking level.
     odroid_system_init(ODROID_APPID_LAUNCHER, 32000);
-    uint8_t oc = odroid_settings_cpu_oc_level_get();
-    SystemClock_Config(oc);
 
-    emulators_init();
 
     app_logo();
 
-#if DISABLE_SPLASH_SCREEN == 0
-    if (boot_mode != BOOT_MODE_WARM)
-        app_start_logo();
-#endif
+    emulators_init();
 
     // Start the previously running emulator directly if it's a valid pointer.
     // If the user holds down the TIME button during startup,start the retro-go
@@ -884,7 +922,12 @@ void GLOBAL_DATA app_main(uint8_t boot_mode)
         file = emulator_get_file(startup_file);
     }
 
-    if ((file != NULL) && ((GW_GetBootButtons() & B_TIME) == 0)) {
+    // Apply the CPU overclocking level from settings when finished booting
+    uint8_t oc = odroid_settings_cpu_oc_level_get();
+    SystemClock_Config(oc);
+
+    bool resume_emulator = (file != NULL) && ((GW_GetBootButtons() & B_TIME) == 0);
+    if (resume_emulator) {
         emulator_start(file, true, true, -1);
     }
     else

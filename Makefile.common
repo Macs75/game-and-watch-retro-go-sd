@@ -267,6 +267,7 @@ JPG_QUALITY_PARAM := --jpg_quality=$(JPG_QUALITY)
 C_SOURCES +=  \
 retro-go-stm32/retro-go/main/gui.c \
 Core/Src/porting/gw_alloc.c \
+Core/Src/porting/gw_sleep.c \
 Core/Src/retro-go/rg_main.c \
 Core/Src/retro-go/rg_rtc.c \
 Core/Src/retro-go/rg_emulators.c \

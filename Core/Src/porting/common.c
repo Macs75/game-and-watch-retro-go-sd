@@ -133,7 +133,7 @@ static void open_pause_menu(odroid_dialog_choice_t *game_options, void_callback_
         repaint_overlay(repaint);
     }
 
-    int r = odroid_overlay_game_menu(game_options, _repaint, flags);
+    odroid_overlay_game_menu(game_options, _repaint, flags);
     if ((flags & ODROID_MENU_FLAG_DRAW_ONLY) == 0) {
         common_emu_state.pause_after_frames = 0;
         common_emu_state.startup_frames = 0;
@@ -169,6 +169,8 @@ void common_emu_input_loop(odroid_gamepad_state_t *joystick, odroid_dialog_choic
                 // Do NOT save-state and then poweroff
                 last_key = ODROID_INPUT_POWER;
                 audio_stop_playing();
+                open_pause_menu(game_options, _repaint, 0);
+                clear_frames = 2;
                 odroid_system_sleep();
             }
             else if(joystick->values[ODROID_INPUT_START]){ // GAME button
@@ -368,13 +370,18 @@ void common_emu_input_loop(odroid_gamepad_state_t *joystick, odroid_dialog_choic
     if (joystick->values[ODROID_INPUT_POWER]) {
         // Save-state and poweroff
         audio_stop_playing();
+        odroid_system_sleep_ex(SLEEP_SHOW_ANIMATION, NULL);
 #if OFF_SAVESTATE == 1 || SD_CARD == 1
         odroid_system_emu_save_state(-1);
 #else
         odroid_system_emu_save_state(0);
 #endif
-        odroid_system_shutdown();
-        odroid_system_sleep();
+        open_pause_menu(game_options, _repaint, ODROID_MENU_FLAG_DRAW_ONLY);
+        lcd_sync();
+        odroid_system_sleep_ex(SLEEP_ENTER_SLEEP, NULL);
+
+        open_pause_menu(game_options, _repaint, 0);
+        clear_frames = 2;
     }
 
     if (common_emu_state.pause_after_frames > 0) {

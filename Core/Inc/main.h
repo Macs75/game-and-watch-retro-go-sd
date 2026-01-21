@@ -125,12 +125,12 @@ void uptime_inc(void);
 uint32_t uptime_get(void);
 
 /* USER CODE BEGIN EFP */
-
-void GW_EnterDeepSleep(void);
 uint32_t GW_GetBootButtons(void);
 void wdog_refresh(void);
 void MX_SPI1_Init(void);
-void app_sleep_logo(void);
+void app_logo(void);
+void app_sleep_transition(bool show_logo, bool standby);
+void app_animate_lcd_brightness(uint8_t initial, uint8_t target, uint8_t step);
 uint16_t get_darken_pixel_d(uint16_t color, uint16_t color1, uint16_t darken);
 uint16_t get_darken_pixel(uint16_t color, uint16_t darken);
 uint16_t get_shined_pixel(uint16_t color, uint16_t shined);

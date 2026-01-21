@@ -778,15 +778,14 @@ int odroid_overlay_dialog(const char *header, odroid_dialog_choice_t *options, i
             }
             else if (joystick.values[ODROID_INPUT_POWER]) // G&W POWER button
             {
-                sel = -1;
+                odroid_system_sleep_ex(SLEEP_SHOW_ANIMATION, NULL);
 #if OFF_SAVESTATE == 1 || SD_CARD == 1
                 odroid_system_emu_save_state(-1);
 #else
                 odroid_system_emu_save_state(0);
 #endif
-                odroid_system_shutdown();
-                odroid_system_sleep();
-                break;
+                odroid_system_sleep_ex(SLEEP_ENTER_SLEEP, NULL);
+                continue;
             }
 
             if (options[sel].enabled >= 1)
@@ -1409,6 +1408,7 @@ int odroid_overlay_game_menu(odroid_dialog_choice_t *extra_options, void_callbac
         break;
 #endif
     case 90:
+        odroid_system_sleep_ex(SLEEP_SHOW_LOGO | SLEEP_SHOW_ANIMATION | SLEEP_ANIMATION_SLOW, NULL);
 #if OFF_SAVESTATE == 1 || SD_CARD == 1
         // Slot -1 is a common slot used only for power off/power on
         odroid_system_emu_save_state(-1);
@@ -1416,7 +1416,7 @@ int odroid_overlay_game_menu(odroid_dialog_choice_t *extra_options, void_callbac
         odroid_system_emu_save_state(0);
 #endif
         odroid_system_shutdown();
-        odroid_system_sleep();
+        odroid_system_sleep_ex(SLEEP_ENTER_STANDBY, NULL);
         break;
     case 100:
         odroid_system_switch_app(0);

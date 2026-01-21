@@ -1,6 +1,7 @@
 #include "gw_flash.h"
 #include "gw_linker.h"
 #include "gw_lcd.h"
+#include "gw_sleep.h"
 #include <string.h>
 #include <time.h>
 #include <stdio.h>
@@ -28,10 +29,10 @@ void sdcard_error_screen(void) {
 
     switch (cause) {
         case FR_NOT_READY:
-            draw_error_screen("No SD CARD found", "Insert SD Card", "Press a key to retry");
+            draw_error_screen("No SD CARD found", "Insert SD Card", "Press any key to power off");
             break;
         default:
-            draw_error_screen("SD CARD ERROR", "Unable to mount SD Card", "Press a key to retry");
+            draw_error_screen("SD CARD ERROR", "Unable to mount SD Card", "Press any key to power off");
             break;
     }
 
@@ -54,8 +55,8 @@ void sdcard_error_screen(void) {
             break;
         }
     }
-    app_sleep_logo();
-    GW_EnterDeepSleep();
+
+    GW_EnterDeepSleep(true, NULL);
 }
 
 /*************************

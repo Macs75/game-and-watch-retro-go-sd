@@ -7,6 +7,7 @@
 #include "gui.h"
 #include "main.h"
 #include "gw_lcd.h"
+#include "gw_sleep.h"
 #if SD_CARD == 1
 #include "gw_sdcard.h"
 #include "ff.h"
@@ -438,10 +439,10 @@ void odroid_system_switch_app(int app)
          * harmless.
          */
 
-        // Unmount Fs and Deinit SD Card if needed
 #if SD_CARD == 1
-        if (fs_mounted) {
-            f_unmount("");
+        // Unmount Fs and Deinit SD Card if needed
+        sdcard_deinit();
+#endif
         }
         switch (sdcard_hw_type) {
             case SDCARD_HW_SPI1:
@@ -496,17 +497,34 @@ void odroid_system_set_sleep_hook(sleep_hook_t callback)
     sleep_hook = callback;
 }
 
-void odroid_system_sleep(void)
+static void odroid_system_sleep_internal(system_sleep_flags_t flags, sleep_wake_hook_t wakeup_callback)
 {
     if (sleep_hook != NULL)
     {
         sleep_hook();
     }
     odroid_settings_StartupFile_set(ACTIVE_FILE);
+    odroid_settings_commit();
 
-    // odroid_settings_commit();
+    if (flags & SLEEP_SHOW_ANIMATION) {
+        app_sleep_transition((flags & SLEEP_SHOW_LOGO) != 0, (flags & SLEEP_ANIMATION_SLOW) != 0);
+    }
+
     gui_save_current_tab();
-    app_sleep_logo();
 
-    GW_EnterDeepSleep();
+    if (flags & SLEEP_ENTER_SLEEP) {
+        GW_EnterDeepSleep(false, wakeup_callback);
+    } else if (flags & SLEEP_ENTER_STANDBY) {
+        GW_EnterDeepSleep(true, NULL);
+    }
+}
+
+void odroid_system_sleep_ex(system_sleep_flags_t flags, sleep_wake_hook_t wakeup_callback)
+{
+    odroid_system_sleep_internal(flags, wakeup_callback);
+}
+
+void odroid_system_sleep(void)
+{
+    odroid_system_sleep_internal(SLEEP_ENTER_SLEEP_WITH_ANIMATION, NULL);
 }

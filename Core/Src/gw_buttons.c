@@ -5,7 +5,7 @@
 
 #include <stdbool.h>
 
-const uint32_t power_debounce_duration_ms = 1000;
+const uint32_t power_debounce_duration_ms = 400;
 uint32_t power_debounce_start_time = 0;
 
 void buttons_debounce_power() {

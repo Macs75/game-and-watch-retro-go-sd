@@ -119,6 +119,7 @@ static void MX_NVIC_Init(void);
 /* USER CODE BEGIN PFP */
 
 void app_main(uint8_t boot_mode);
+void app_animate_lcd_brightness(uint8_t initial, uint8_t target, uint8_t step);
 
 /* USER CODE END PFP */
 
@@ -227,55 +228,6 @@ uint32_t uptime_get(void)
   return uptime_s;
 }
 
-void GW_EnterDeepSleep(void)
-{
-  // Stop SAI DMA (audio)
-  audio_stop_playing();
-
-  // Enable wakup by PIN1, the power button
-  HAL_PWR_EnableWakeUpPin(PWR_WAKEUP_PIN1_LOW);
-
-  lcd_backlight_off();
-
-  // Leave a trace in RAM that we entered standby mode
-  boot_magic = BOOT_MAGIC_STANDBY;
-
-  // Unmount Fs and Deinit SD Card if needed
-#if SD_CARD == 1
-  if (fs_mounted) {
-    f_unmount("");
-  }
-  switch (sdcard_hw_type) {
-    case SDCARD_HW_SPI1:
-      sdcard_deinit_spi1();
-      break;
-    case SDCARD_HW_OSPI1:
-      sdcard_deinit_ospi1();
-      break;
-    default:
-      break;
-  }
-#endif
-
-  // Delay 500ms to give us a chance to attach a debugger in case
-  // we end up in a suspend-loop.
-  for (int i = 0; i < 10; i++) {
-      wdog_refresh();
-      HAL_Delay(50);
-  }
-  // Deinit the LCD, save power.
-  lcd_deinit(&hspi2);
-
-  HAL_PWR_EnterSTANDBYMode();
-
-  // Execution stops here, this function will not return
-  while(1) {
-    // If we for some reason survive until here, let's just reboot
-    HAL_NVIC_SystemReset();
-  }
-
-}
-
 // Returns buttons that were pressed at boot
 uint32_t GW_GetBootButtons(void)
 {
@@ -320,9 +272,11 @@ int main(void)
   uint8_t trigger_wdt_bsod = 0;
   uint8_t boot_mode = BOOT_MODE_APP;
 
+#if 0
   for(int i = 0; i < 1000000; i++) {
     __NOP();
   }
+#endif
 
 #if SD_CARD == 0
   // Nullpointer redzone
