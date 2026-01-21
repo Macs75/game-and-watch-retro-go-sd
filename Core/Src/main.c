@@ -377,27 +377,9 @@ int main(void)
   // Save the button states as early as possible
   boot_buttons = buttons_get();
 
-  lcd_backlight_off();
-
-  /* Power off LCD and external Flash */
-  lcd_deinit(&hspi2);
-
-  // Keep this
-  // at least 8 frames at the end of power down (lcd_deinit())
-  // 4 x 50 ms => 200ms
-  for (int i = 0; i < 4; i++) {
-    wdog_refresh();
-    HAL_Delay(50);
-  }
-
   /* Power on LCD and external Flash */
-  lcd_init(&hspi2, &hltdc);
-
-  // Keep this
-  for (int i = 0; i < 4; i++) {
-    wdog_refresh();
-    HAL_Delay(50);
-  }
+  lcd_backlight_off();
+  lcd_init(&hspi2, &hltdc, LCD_INIT_CLEAR_BUFFERS);
 
   if (trigger_wdt_bsod) {
     BSOD(BSOD_WATCHDOG, 0, 0);
