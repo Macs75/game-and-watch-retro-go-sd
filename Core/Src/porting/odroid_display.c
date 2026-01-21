@@ -52,6 +52,10 @@ void odroid_display_set_backlight(odroid_display_backlight_t level)
     odroid_settings_Backlight_set(level);
 }
 
+uint8_t odroid_display_get_backlight_raw() {
+    return backlightLevels[backlightLevel];
+}
+
 odroid_display_scaling_t odroid_display_get_scaling_mode(void)
 {
     return scalingMode;
