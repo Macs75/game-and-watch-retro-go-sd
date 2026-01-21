@@ -885,7 +885,7 @@ void GLOBAL_DATA app_main(uint8_t boot_mode)
 {
     lcd_set_buffers(framebuffer1, framebuffer2);
 
-#if DISABLE_SPLASH_SCREEN  == 1
+#if DISABLE_SPLASH_SCREEN == 1
     // Show basic boot logo early on cold boot
     if (boot_mode != BOOT_MODE_HOT)
     {
@@ -894,8 +894,9 @@ void GLOBAL_DATA app_main(uint8_t boot_mode)
         lcd_backlight_off();
 
         app_logo();
+        lcd_clone();
 
-        lcd_backlight_set(lcd_brightness);
+        app_animate_lcd_brightness(120, lcd_brightness, 4);
     }
 #endif
 
@@ -925,6 +926,7 @@ void GLOBAL_DATA app_main(uint8_t boot_mode)
     // Show logo with the correct colors when loading from emulator
     if (boot_mode == BOOT_MODE_HOT) {
         app_logo();
+        lcd_clone();
 
         app_animate_lcd_brightness(120, odroid_display_get_backlight_raw(), 7);
     }
