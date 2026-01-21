@@ -35,6 +35,7 @@ int odroid_overlay_game_menu(odroid_dialog_choice_t *extra_options, void_callbac
 #include "gw_lcd.h"
 #include "bitmaps/font_basic.h"
 #include "gw_lcd.h"
+#include "common.h"
 #include "odroid_system.h"
 #include "odroid_overlay.h"
 #include "main.h"
@@ -236,10 +237,10 @@ void odroid_overlay_clock(int x_pos, int y_pos)
     draw_clock_digit(dst_img, hour / 10, x_pos, y_pos, curr_colors->sel_c);
 };
 
-void odroid_overlay_draw_battery(int x_pos, int y_pos)
+void odroid_overlay_draw_battery(odroid_battery_state_t battery, int x_pos, int y_pos)
 {
-    uint16_t percentage = odroid_input_read_battery().percentage;
-    odroid_battery_charge_state_t battery_state = odroid_input_read_battery().state;
+    uint16_t percentage = battery.percentage;
+    odroid_battery_charge_state_t battery_state = battery.state;
     uint16_t color_fill = curr_colors->sel_c;
     uint16_t color_border = curr_colors->sel_c;
     uint16_t color_empty = curr_colors->main_c;
@@ -1088,10 +1089,21 @@ static void draw_game_status_bar(runtime_stats_t stats)
 
     odroid_overlay_draw_fill_rect(0, 0, ODROID_SCREEN_WIDTH, height, curr_colors->main_c);
     odroid_overlay_draw_fill_rect(0, ODROID_SCREEN_HEIGHT - height, ODROID_SCREEN_WIDTH, height, curr_colors->main_c);
-    i18n_draw_text_line(48, pad_text, width, header, curr_colors->sel_c, curr_colors->main_c, 0);
-    i18n_draw_text_line(0, ODROID_SCREEN_HEIGHT - height + pad_text, ODROID_SCREEN_WIDTH, bottom, curr_colors->sel_c, curr_colors->main_c, 0);
     odroid_overlay_clock(2, 3);
-    odroid_overlay_draw_battery(ODROID_SCREEN_WIDTH - 22, ODROID_SCREEN_HEIGHT - 13);
+    i18n_draw_text_line(48, pad_text, width, header, curr_colors->sel_c, curr_colors->main_c, 0);
+
+    odroid_battery_state_t battery_state = odroid_input_read_battery();
+    odroid_overlay_draw_battery(battery_state, ODROID_SCREEN_WIDTH - 24, pad_text + 1);
+
+    bool show_battery_percentage = battery_state.state == ODROID_BATTERY_CHARGE_STATE_DISCHARGING;
+    if (show_battery_percentage) {
+        snprintf(header, 60, "%u%%", battery_state.percentage);
+
+        int battery_percentage_width = i18n_get_text_width(header);
+        i18n_draw_text_line(ODROID_SCREEN_WIDTH - 30 - battery_percentage_width, pad_text, 40, header, curr_colors->sel_c, curr_colors->main_c, 1);
+    }
+
+    i18n_draw_text_line(0, ODROID_SCREEN_HEIGHT - height + pad_text, ODROID_SCREEN_WIDTH, bottom, curr_colors->sel_c, curr_colors->main_c, 0);
 }
 
 int

@@ -621,10 +621,11 @@ void common_ingame_overlay(void) {
     uint8_t turbo_key;
     uint16_t by = INGAME_OVERLAY_BOX_Y;
 
-    uint16_t percentage = odroid_input_read_battery().percentage;
+    odroid_battery_state_t battery_state = odroid_input_read_battery();
+    uint16_t percentage = battery_state.percentage;
     if (percentage <= 15) {
         if ((get_elapsed_time() % 1000) < 300)
-            odroid_overlay_draw_battery(150, 90); 
+            odroid_overlay_draw_battery(battery_state, 150, 90); 
     }
     
     switch(common_emu_state.overlay)
