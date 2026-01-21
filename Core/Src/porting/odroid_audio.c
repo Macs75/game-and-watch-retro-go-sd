@@ -16,6 +16,8 @@ uint8_t audio_level = ODROID_AUDIO_VOLUME_MAX;
 // NOT sync with VSYNC TODO
 #define GW_AUDIO_FREQUENCY 32768
 
+uint32_t audio_frequency = GW_AUDIO_FREQUENCY;
+
 /* set audio frequency  */
 static void set_audio_frequency(uint32_t frequency)
 {
@@ -272,6 +274,8 @@ static void set_audio_frequency(uint32_t frequency)
 
     /* apply the new configuration */
     HAL_SAI_Init(&hsai_BlockA1);
+
+    audio_frequency = frequency;
 }
 
 void odroid_audio_init(int sample_rate)
@@ -293,4 +297,9 @@ void odroid_audio_volume_set(int level)
 int odroid_audio_volume_get()
 {
     return audio_level;
+}
+
+int odroid_audio_sample_rate_get()
+{
+    return audio_frequency;
 }
