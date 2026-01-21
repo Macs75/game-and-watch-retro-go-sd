@@ -288,7 +288,7 @@ int main(void)
 
   // Reset the log write pointer
   // Don't reset the logbuf when rebooting from a watchdog reset
-  if (boot_magic != BOOT_MAGIC_WATCHDOG) {
+  if (boot_magic != BOOT_MAGIC_WATCHDOG && boot_magic != BOOT_MAGIC_EMULATOR) {
     log_idx = 0;
     logbuf[0] = '\0';
   }
@@ -306,6 +306,14 @@ int main(void)
   case BOOT_MAGIC_WATCHDOG:
     printf("Boot from watchdog reset!\nboot_magic=0x%08lx\n", boot_magic);
     trigger_wdt_bsod = 1;
+    break;
+  case BOOT_MAGIC_EMULATOR:
+    printf("Boot from emulator!\n");
+    boot_mode = BOOT_MODE_HOT;
+
+    // Refresh watchdog asap to prevent watchdog reset on hot boot
+    wdog_enable();
+    wdog_refresh();
     break;
   default:
     if ((boot_magic & BOOT_MAGIC_BSOD_MASK) == BOOT_MAGIC_BSOD) {
@@ -433,6 +441,7 @@ int main(void)
   switch (boot_mode) {
   case BOOT_MODE_APP:
   case BOOT_MODE_WARM:
+  case BOOT_MODE_HOT:
     wdog_enable();
     // Launch the emulator
     app_main(boot_mode);

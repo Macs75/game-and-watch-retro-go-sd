@@ -443,23 +443,46 @@ void odroid_system_switch_app(int app)
         // Unmount Fs and Deinit SD Card if needed
         sdcard_deinit();
 #endif
-        }
-        switch (sdcard_hw_type) {
-            case SDCARD_HW_SPI1:
-                sdcard_deinit_spi1();
-                break;
-            case SDCARD_HW_OSPI1:
-                sdcard_deinit_ospi1();
-                break;
-            default:
-                break;
-        }
-#endif
 
+#if 1
+        // Jumping directly to bank2 entrypoint instead of rebooting is much faster
+
+        void __attribute__((naked)) _start_app(void (*const pc)(void), uint32_t sp) {
+            __asm("           \n\
+                  msr msp, r1 /* load r1 into MSP */\n\
+                  bx r0       /* branch to the address at r0 */\n\
+            ");
+        }
+
+        void _boot_bank2(void) {
+            uint32_t sp = *((uint32_t *)FLASH_BANK2_BASE);
+            uint32_t pc = *((uint32_t *)FLASH_BANK2_BASE + 1);
+
+            // Check that Bank 2 content is valid
+            __set_MSP(sp);
+            __set_PSP(sp);
+            HAL_MPU_Disable();
+            _start_app((void (*const)(void))pc, (uint32_t)sp);
+        }
+
+        boot_magic_set(BOOT_MAGIC_EMULATOR);
+
+        app_animate_lcd_brightness(odroid_display_get_backlight_raw(), 0, 10);
+
+        HAL_DeInit();
+
+        SCB_InvalidateDCache();
+        SCB_InvalidateICache();
+
+        while (1) {
+            _boot_bank2();
+        }
+#else
         *((uint32_t *)0x2001FFF8) = 0x544F4F42;              // "BOOT"
         *((uint32_t *)0x2001FFFC) = (uint32_t)&__INTFLASH__; // vector table
 
         NVIC_SystemReset();
+#endif
         break;
     case 9:
         *((uint32_t *)0x2001FFF8) = 0x544F4F42;              // "BOOT"

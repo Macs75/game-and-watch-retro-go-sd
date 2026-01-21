@@ -885,6 +885,20 @@ void GLOBAL_DATA app_main(uint8_t boot_mode)
 {
     lcd_set_buffers(framebuffer1, framebuffer2);
 
+#if DISABLE_SPLASH_SCREEN  == 1
+    // Show basic boot logo early on cold boot
+    if (boot_mode != BOOT_MODE_HOT)
+    {
+        odroid_system_init(ODROID_APPID_LAUNCHER, 32000);
+        uint8_t lcd_brightness = lcd_backlight_get();
+        lcd_backlight_off();
+
+        app_logo();
+
+        lcd_backlight_set(lcd_brightness);
+    }
+#endif
+
     // if OFW is present, write "BOOT" to RTC backup register to always boot to Retro-Go
     // Check game_and_watch_patch project for more details
     if (get_ofw_is_present())
@@ -908,8 +922,12 @@ void GLOBAL_DATA app_main(uint8_t boot_mode)
     // Re-initialize system now that the filesystem is mounted
     odroid_system_init(ODROID_APPID_LAUNCHER, 32000);
 
+    // Show logo with the correct colors when loading from emulator
+    if (boot_mode == BOOT_MODE_HOT) {
+        app_logo();
 
-    app_logo();
+        app_animate_lcd_brightness(120, odroid_display_get_backlight_raw(), 7);
+    }
 
     emulators_init();
 
@@ -932,6 +950,11 @@ void GLOBAL_DATA app_main(uint8_t boot_mode)
     }
     else
     {
+#if DISABLE_SPLASH_SCREEN == 0
+        if (boot_mode != BOOT_MODE_WARM && boot_mode != BOOT_MODE_HOT)
+            app_start_logo();
+#endif
+
         retro_loop();
     }
 }
