@@ -227,7 +227,9 @@ static void *msx_screenshot()
 
 static void msx_sleep_wake_up()
 {
-    printf("MSX: Waking up from sleep!\n");
+    if (strlen(current_disk_path) > 0) {
+        insertDiskette(properties, 0, current_disk_path, NULL, -1);
+    }
 }
 
 /* Core stubs */
