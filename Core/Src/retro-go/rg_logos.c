@@ -29,20 +29,12 @@
 #endif
 
 #if SD_CARD == 1
-static int16_t current_logo = -1;
-static uint8_t *temp_logo_buffer;//[112*16/8+4];
-static int16_t current_header = -1;
-static uint8_t *temp_header_buffer;//[152*24/8+4];
-static int16_t current_pad = -1;
-static uint8_t *temp_pad_buffer;//[72*32/8+4];
+
+#define MAX_LOGO_COUNT 100
+static retro_logo_image** logo_image_cache;
 
 void rg_reset_logo_buffers() {
-    current_logo = -1;
-    temp_logo_buffer = NULL;
-    current_header = -1;
-    temp_header_buffer = NULL;
-    current_pad = -1;
-    temp_pad_buffer = NULL;
+    logo_image_cache = NULL;
 }
 #endif
 
@@ -164,67 +156,47 @@ retro_logo_image *rg_get_logo(int16_t logo_index) {
     static_assert(INT_LOGO_COUNT == 3);
     logo_index -= INT_LOGO_COUNT;
 
-    retro_logo_image *dest;
-    int16_t *current_logo_ptr;
-    if (logo_index >= RG_LOGO_HEADER_SG1000 && logo_index < RG_LOGO_PAD_SG1000) {
-        if (!temp_header_buffer) {
-            temp_header_buffer = ram_malloc(152*24/8+4);
-        }
-        dest = (retro_logo_image *)temp_header_buffer;
-        if (logo_index == current_header) {
-            return dest;
-        }
-        current_logo_ptr = &current_header;
-    } else if (logo_index >= RG_LOGO_PAD_SG1000 && logo_index < RG_LOGO_COLECO) {
-        if (!temp_pad_buffer) {
-            temp_pad_buffer = ram_malloc(172*32/8+4);
-        }
-        dest = (retro_logo_image *)temp_pad_buffer;
-        if (logo_index == current_pad) {
-            return dest;
-        }
-        current_logo_ptr = &current_pad;
-    } else {
-        if (!temp_logo_buffer) {
-            temp_logo_buffer = ram_malloc(112*16/8+4);
-        }
-        dest = (retro_logo_image *)temp_logo_buffer;
-
-        if (logo_index == current_logo) {
-            return dest;
-        }
-        current_logo_ptr = &current_logo;
+    if (logo_image_cache != NULL) {
+        return logo_image_cache[logo_index];
     }
+
     FILE* file = fopen("/cores/logo.bin", "rb");
     if (!file) {
         printf("Error: unable to open logo file\n");
         return NULL;
     }
 
-    for (int i = 0; i <= logo_index; i++) {
-        uint16_t width, height;
+    logo_image_cache = ram_malloc(MAX_LOGO_COUNT * sizeof(retro_logo_image*));
+    assert(logo_image_cache != NULL);
 
-        fread(&width, sizeof(uint16_t), 1, file);
-        fread(&height, sizeof(uint16_t), 1, file);
+    int current_logo_index = 0;
+    while (1) {
+        uint16_t width, height;
+        size_t read;
+
+        read = fread(&width, sizeof(uint16_t), 1, file);
+        if (read == 0) break;
+        read = fread(&height, sizeof(uint16_t), 1, file);
+        if (read == 0) break;
 
         size_t data_size = ((width + 7) >> 3) * height; // width aligned to 8 * height / 8
         data_size = (data_size + 3) & ~3; // align to 4 bytes
 
-        if (i != logo_index) {
-            fseek(file, data_size, SEEK_CUR);
-        } else {
-            *current_logo_ptr = logo_index;
-            dest->width = width;
-            dest->height = height;
+        printf("%ux%u, %u\n", width, height, data_size);
 
-            fread(dest->logo, 1, data_size, file);
+        retro_logo_image* dest = ram_malloc(sizeof(retro_logo_image) + data_size);
+        assert(dest != 0);
+        dest->width = width;
+        dest->height = height;
+        read = fread(dest->logo, 1, data_size, file);
+        if (read == 0) break;
 
-            fclose(file);
-            return dest;
-        }
+        logo_image_cache[current_logo_index] = dest;
+        current_logo_index++;
     }
+
     fclose(file);
-    return NULL;
+    return logo_image_cache[logo_index];
 #endif
 }
 
