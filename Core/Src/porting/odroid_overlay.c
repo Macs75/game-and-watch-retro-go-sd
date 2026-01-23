@@ -403,9 +403,12 @@ void odroid_overlay_draw_spinner(int center_x, int center_y, float radius, float
     }
 }
 
-static void save_state_and_sleep(bool standby)
+static void save_state_and_sleep(bool standby, void_callback_t after_screen_off_cb)
 {
     odroid_system_sleep_ex(standby ? SLEEP_SHOW_LOGO | SLEEP_SHOW_ANIMATION | SLEEP_ANIMATION_SLOW : SLEEP_SHOW_ANIMATION, NULL);
+    if (after_screen_off_cb) {
+        after_screen_off_cb();
+    }
 #if OFF_SAVESTATE == 1 || SD_CARD == 1
     odroid_system_emu_save_state(-1);
 #else
@@ -424,13 +427,12 @@ void odroid_overlay_sleep_pause_banner(void_callback_t repaint, odroid_menu_flag
     void draw_game_status_bar(runtime_stats_t* stats);
     void draw_darken_rounded_rectangle(pixel_t *fb, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2);
 
-    bool draw_only = flags & ODROID_MENU_FLAG_DRAW_ONLY;
     odroid_gamepad_state_t joystick;
     bool power_key_debounce = true;
     bool any_key_debounce = false;
     uint32_t start_time = get_elapsed_time();
 
-    void _draw_banner()
+    void _draw_banner(bool draw_only)
     {
         const int message_blink_rate = 750;
         bool draw_message = draw_only || ((get_elapsed_time() - start_time) % (message_blink_rate * 2)) < message_blink_rate;
@@ -474,7 +476,7 @@ void odroid_overlay_sleep_pause_banner(void_callback_t repaint, odroid_menu_flag
         draw_game_status_bar(NULL);
     }
 
-    void _repaint()
+    void _repaint(bool draw_only)
     {
         wdog_refresh();
         lcd_sleep_while_swap_pending();
@@ -488,7 +490,7 @@ void odroid_overlay_sleep_pause_banner(void_callback_t repaint, odroid_menu_flag
             odroid_overlay_darken_all();
         }
 
-        _draw_banner();
+        _draw_banner(draw_only);
 
         // Show
         if (!draw_only)
@@ -496,17 +498,22 @@ void odroid_overlay_sleep_pause_banner(void_callback_t repaint, odroid_menu_flag
             lcd_swap();
         }
     }
+    
+    void _repaint_sleep() {
+        _repaint(true);
+        lcd_sync();
+    }
 
     void _save_state_and_sleep()
     {
-        save_state_and_sleep(false);
+        save_state_and_sleep(false, &_repaint_sleep);
         power_key_debounce = true;
         start_time = get_elapsed_time();
     }
 
-    if (draw_only)
+    if (flags & ODROID_MENU_FLAG_DRAW_ONLY)
     {
-        _repaint();
+        _repaint(true);
         return;
     }
 
@@ -514,7 +521,7 @@ void odroid_overlay_sleep_pause_banner(void_callback_t repaint, odroid_menu_flag
 
     while (1)
     {
-        _repaint();
+        _repaint(false);
 
         odroid_input_read_gamepad(&joystick);
 
@@ -533,7 +540,7 @@ void odroid_overlay_sleep_pause_banner(void_callback_t repaint, odroid_menu_flag
         {
             if (!power_key_debounce && !any_key_debounce)
             {
-                _save_state_and_sleep();
+                _save_state_and_sleep(NULL);
             }
         }
         else
@@ -551,7 +558,7 @@ void odroid_overlay_sleep_pause_banner(void_callback_t repaint, odroid_menu_flag
         if (odroid_settings_MainMenuTimeoutS_get() != 0 &&
             (idle_s > odroid_settings_MainMenuTimeoutS_get()))
         {
-            _save_state_and_sleep();
+            _save_state_and_sleep(NULL);
         }
     }
 
@@ -1024,7 +1031,7 @@ int odroid_overlay_dialog(const char *header, odroid_dialog_choice_t *options, i
             }
             else if (joystick.values[ODROID_INPUT_POWER] && !power_key_debounce) // G&W POWER button
             {
-                save_state_and_sleep(false);
+                save_state_and_sleep(false, NULL);
                 power_key_debounce = true;
                 continue;
             }
@@ -1655,7 +1662,7 @@ int odroid_overlay_game_menu(odroid_dialog_choice_t *extra_options, void_callbac
         break;
 #endif
     case 90:
-        save_state_and_sleep(true);
+        save_state_and_sleep(true, NULL);
         break;
     case 100:
         odroid_system_switch_app(0);
