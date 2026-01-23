@@ -524,7 +524,7 @@ void odroid_system_set_pre_sleep_hook(sleep_pre_sleep_hook_t callback)
 
 static void odroid_system_sleep_post_wakeup_handler() {
     // Reset idle timer
-    gui.idle_start = 0;
+    gui.idle_start = uptime_get();
 
     if (currentApp.handlers.sleep_post_wakeup) {
         (*currentApp.handlers.sleep_post_wakeup)();
