@@ -58,6 +58,7 @@ void common_emu_frame_loop_reset(void){
     common_emu_state.pause_frames=0;
     common_emu_state.pause_after_frames=0;
     common_emu_state.startup_frames=0;
+    common_emu_state.clear_frames=0;
     frame_integrator = 0;
 }
 
@@ -137,8 +138,17 @@ static void open_pause_menu(odroid_dialog_choice_t *game_options, void_callback_
     if ((flags & ODROID_MENU_FLAG_DRAW_ONLY) == 0) {
         common_emu_state.pause_after_frames = 0;
         common_emu_state.startup_frames = 0;
+        common_emu_state.clear_frames = 2;
         cpumon_stats.last_busy = 0;
     }
+}
+
+static void sleep_and_open_pause_menu(odroid_dialog_choice_t *game_options, void_callback_t repaint, bool pause_banner, odroid_menu_flags_t flags) {
+    open_pause_menu(game_options, repaint, pause_banner, ODROID_MENU_FLAG_DRAW_ONLY);
+    lcd_sync();
+    odroid_system_sleep_ex(SLEEP_ENTER_SLEEP, NULL);
+
+    open_pause_menu(game_options, repaint, pause_banner, 0);
 }
 
 /**
@@ -155,7 +165,6 @@ void common_emu_input_loop(odroid_gamepad_state_t *joystick, odroid_dialog_choic
     static int8_t last_key = -1;
     static bool pause_pressed = false;
     static bool macro_activated = false;
-    static uint8_t clear_frames = 2;
 
     void _repaint() {
         repaint_overlay(repaint);
@@ -169,9 +178,7 @@ void common_emu_input_loop(odroid_gamepad_state_t *joystick, odroid_dialog_choic
                 // Do NOT save-state and then poweroff
                 last_key = ODROID_INPUT_POWER;
                 audio_stop_playing();
-                open_pause_menu(game_options, _repaint, 0);
-                clear_frames = 2;
-                odroid_system_sleep();
+                sleep_and_open_pause_menu(game_options, _repaint, false, 0);
             }
             else if(joystick->values[ODROID_INPUT_START]){ // GAME button
 #if SD_CARD == 1
@@ -346,8 +353,7 @@ void common_emu_input_loop(odroid_gamepad_state_t *joystick, odroid_dialog_choic
         // PAUSE/SET has been released without performing any macro. Launch menu
         pause_pressed = false;
 
-        open_pause_menu(game_options, _repaint, 0);
-        clear_frames = 2;
+        open_pause_menu(game_options, _repaint, false, 0);
     }
     else if (!joystick->values[ODROID_INPUT_VOLUME]){
         pause_pressed = false;
@@ -356,11 +362,11 @@ void common_emu_input_loop(odroid_gamepad_state_t *joystick, odroid_dialog_choic
     }
 
     if (ingame_overlay_loop()) {
-        clear_frames = 2;
+        common_emu_state.clear_frames = 2;
     }
 
-    if (clear_frames) {
-        clear_frames--;
+    if (common_emu_state.clear_frames) {
+        common_emu_state.clear_frames--;
         lcd_sleep_while_swap_pending();
 
         // Clear the active screen buffer, caller must repaint it 
@@ -376,12 +382,7 @@ void common_emu_input_loop(odroid_gamepad_state_t *joystick, odroid_dialog_choic
 #else
         odroid_system_emu_save_state(0);
 #endif
-        open_pause_menu(game_options, _repaint, ODROID_MENU_FLAG_DRAW_ONLY);
-        lcd_sync();
-        odroid_system_sleep_ex(SLEEP_ENTER_SLEEP, NULL);
-
-        open_pause_menu(game_options, _repaint, 0);
-        clear_frames = 2;
+        sleep_and_open_pause_menu(game_options, _repaint, true, ODROID_MENU_FLAG_DRAW_ONLY);
     }
 
     if (common_emu_state.pause_after_frames > 0) {
