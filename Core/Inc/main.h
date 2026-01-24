@@ -29,6 +29,7 @@ extern "C" {
 
 #define BOOT_MODE_APP      0
 #define BOOT_MODE_WARM     1
+#define BOOT_MODE_HOT      2
 
 /* Includes ------------------------------------------------------------------*/
 #include <stdbool.h>
@@ -125,12 +126,12 @@ void uptime_inc(void);
 uint32_t uptime_get(void);
 
 /* USER CODE BEGIN EFP */
-
-void GW_EnterDeepSleep(void);
 uint32_t GW_GetBootButtons(void);
 void wdog_refresh(void);
 void MX_SPI1_Init(void);
-void app_sleep_logo(void);
+void app_logo(void);
+void app_sleep_transition(bool show_logo, bool standby);
+void app_animate_lcd_brightness(uint8_t initial, uint8_t target, uint8_t step);
 uint16_t get_darken_pixel_d(uint16_t color, uint16_t color1, uint16_t darken);
 uint16_t get_darken_pixel(uint16_t color, uint16_t darken);
 uint16_t get_shined_pixel(uint16_t color, uint16_t shined);
@@ -195,6 +196,7 @@ int odroid_overlay_draw_text_line(uint16_t x_pos, uint16_t y_pos, uint16_t width
 #define BOOT_MAGIC_WATCHDOG 0xd066cafe
 #define BOOT_MAGIC_BSOD     0xbad00000
 #define BOOT_MAGIC_FLASHAPP 0xf1a5f1a5
+#define BOOT_MAGIC_EMULATOR 0x434f5245
 
 #define BOOT_MAGIC_BSOD_MASK 0xffff0000
 

@@ -188,6 +188,7 @@ const lang_t lang_pt_pt LANG_DATA = {
     .s_Theme_CoverLightH = "Encadeado H",
     .s_Caching_Game = "Armazenando em cache o jogo",
     .s_Loading_Ram = "Carregando em RAM",
+    .s_Pause_Banner = "PAUSE",
     //=====================================================================
 
     // Core\Src\retro-go\rg_emulators.c ====================================
@@ -195,6 +196,8 @@ const lang_t lang_pt_pt LANG_DATA = {
     .s_Type = "Tipo",
     .s_Size = "ROM",
     .s_Close = "Fechar",
+    .s_Delete_Rom_File = "Delete ROM",
+    .s_Delete_Rom_File_Confirm = "Delete '%s'?",
     .s_GameProp = "Propriedades",
     .s_Resume_game = "Resumir jogo",
     .s_New_game = "Novo jogo",

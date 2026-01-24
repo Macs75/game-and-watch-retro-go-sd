@@ -70,8 +70,8 @@ bool rg_storage_mkdir(const char *dir);
 bool rg_storage_scandir(const char *path, rg_scandir_cb_t *callback, void *arg, uint32_t flags);
 rg_stat_t rg_storage_stat(const char *path);
 
-typedef void (*progress_ram_cb)(uint8_t progress);
+typedef void (*file_progress_cb_t)(uint32_t total_size, uint32_t total_processed, uint8_t progress);
 
-size_t rg_storage_copy_file_to_ram(char *file_path, uint8_t *ram_dest, void (*progress_ram_cb)(uint8_t progress));
+size_t rg_storage_copy_file_to_ram(char *file_path, uint8_t *ram_dest, file_progress_cb_t file_progress_cb);
 
 bool rg_storage_get_adjacent_files(const char *path, char *prev_path, char *next_path);

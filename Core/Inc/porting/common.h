@@ -64,6 +64,7 @@ typedef struct {
     uint8_t pause_after_frames:3;
     uint8_t startup_frames:2;
     uint8_t overlay:4;
+    uint8_t clear_frames:2;
 } common_emu_state_t;
 
 extern common_emu_state_t common_emu_state;
@@ -78,6 +79,8 @@ void common_emu_clear_dwt_cycles(void);
  * Drawable stuff over current emulation.
  */
 void common_ingame_overlay(void);
+
+void draw_darken_rounded_rectangle(pixel_t *fb, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2);
 
 /**
  * Draw border screen for Zelda 3 when not full screen.

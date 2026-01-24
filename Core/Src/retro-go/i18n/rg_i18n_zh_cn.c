@@ -193,6 +193,7 @@ const lang_t lang_zh_cn LANG_DATA = {
     .s_Theme_CoverLightH = "水平欢滚",
     .s_Caching_Game = "正在缓存游戏",
     .s_Loading_Ram = "正在加载到RAM",
+    .s_Pause_Banner = "PAUSE",
     //=====================================================================
 
     // Core\Src\retro-go\rg_emulators.c ====================================
@@ -201,6 +202,8 @@ const lang_t lang_zh_cn LANG_DATA = {
     .s_Type = "类型：",
     .s_Size = "大小：",
     .s_Close = "× 关闭",
+    .s_Delete_Rom_File = "Delete ROM",
+    .s_Delete_Rom_File_Confirm = "Delete '%s'?",
     .s_GameProp = "游戏文件属性",
     .s_Resume_game = "＞ 继续游戏",
     .s_New_game = "◇ 开始游戏",

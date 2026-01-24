@@ -213,7 +213,7 @@ bool rg_storage_scandir(const char *path, rg_scandir_cb_t *callback, void *arg, 
 }
 
 /* copy file content into ram */
-size_t rg_storage_copy_file_to_ram(char *file_path, uint8_t *ram_dest, void (*progress_ram_cb)(uint8_t progress)) {
+size_t rg_storage_copy_file_to_ram(char *file_path, uint8_t *ram_dest, file_progress_cb_t file_progress_cb) {
     FILE *file;
     size_t bytes_read;
     uint32_t total_written;
@@ -228,12 +228,15 @@ size_t rg_storage_copy_file_to_ram(char *file_path, uint8_t *ram_dest, void (*pr
     fseek(file, 0, SEEK_SET);
 
     total_written = 0;
+    if (file_progress_cb) {
+        file_progress_cb(total_size, 0, 0);
+    }
 
     while ((bytes_read = fread(ram_dest+total_written, 1, 32*1024, file))) {
         wdog_refresh();
         total_written += bytes_read;
-        if (progress_ram_cb) {
-            progress_ram_cb((uint8_t)((total_written * 100) / (total_size)));
+        if (file_progress_cb) {
+            file_progress_cb(total_size, total_written, (uint8_t)((total_written * 100) / (total_size)));
         }
     }
 

@@ -769,16 +769,16 @@ int app_main_nes_fceu(uint8_t load_state, uint8_t start_paused, int8_t save_slot
 
     FCEUI_SetInput(0, SI_GAMEPAD, &fceu_joystick, 0);
 
-    // If mapper is 85 (with YM2413 FM sound), we have to use lower
-    // sample rate as STM32H7 CPU can't handle FM sound emulation at 48kHz
-    if ((gameInfo->type == GIT_CART) && (iNESCart.mapper == 85)) {
+    // If mapper is 85 (with YM2413 FM sound) and CPU is not overclocked,
+    // we have to use lower sample rate as STM32H7 CPU can't otherwise handle FM sound emulation at 48kHz
+    if (odroid_settings_cpu_oc_level_get() == 0 && gameInfo->type == GIT_CART && iNESCart.mapper == 85) {
         sndsamplerate = NES_FREQUENCY_18K;
     }
     FCEUI_Sound(sndsamplerate);
     FCEUI_SetSoundVolume(150);
 
     odroid_system_init(APPID_NES, sndsamplerate);
-    odroid_system_emu_init(&LoadState, &SaveState, &Screenshot, NULL);
+    odroid_system_emu_init(&LoadState, &SaveState, &Screenshot, NULL, NULL);
 
     if (FSettings.PAL) {
         lcd_set_refresh_rate(50);

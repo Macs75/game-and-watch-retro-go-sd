@@ -47,6 +47,7 @@ void odroid_audio_mute(bool mute)
 
 common_emu_state_t common_emu_state = {
     .frame_time_10us = (uint16_t)(100000 / 60 + 0.5f),  // Reasonable default of 60FPS if not explicitly configured.
+    .clear_frames = 2, // Clear when starting emulator
 };
 
 static int32_t frame_integrator = 0;
@@ -58,6 +59,7 @@ void common_emu_frame_loop_reset(void){
     common_emu_state.pause_frames=0;
     common_emu_state.pause_after_frames=0;
     common_emu_state.startup_frames=0;
+    common_emu_state.clear_frames=0;
     frame_integrator = 0;
 }
 
@@ -123,6 +125,38 @@ static bool ingame_overlay_loop() {
     return false;
 }
 
+static void repaint_overlay(void_callback_t repaint) {
+    ingame_overlay_loop();
+    repaint();
+}
+
+static void open_pause_menu(odroid_dialog_choice_t *game_options, void_callback_t repaint, bool pause_banner, odroid_menu_flags_t flags) {
+    void _repaint() {
+        repaint_overlay(repaint);
+    }
+
+    if (pause_banner) {
+        odroid_overlay_sleep_pause_banner(_repaint, flags);
+    } else {
+        odroid_overlay_game_menu(game_options, _repaint, flags);
+    }
+
+    if ((flags & ODROID_MENU_FLAG_DRAW_ONLY) == 0) {
+        common_emu_state.pause_after_frames = 0;
+        common_emu_state.startup_frames = 0;
+        common_emu_state.clear_frames = 2;
+        cpumon_stats.last_busy = 0;
+    }
+}
+
+static void sleep_and_open_pause_menu(odroid_dialog_choice_t *game_options, void_callback_t repaint, bool pause_banner, odroid_menu_flags_t flags) {
+    open_pause_menu(game_options, repaint, pause_banner, ODROID_MENU_FLAG_DRAW_ONLY);
+    lcd_sync();
+    odroid_system_sleep_ex(SLEEP_ENTER_SLEEP, NULL);
+
+    open_pause_menu(game_options, repaint, pause_banner, 0);
+}
+
 /**
  * Common input/macro/menuing features inside all emu loops. This is to be called
  * after inputs are read into `joystick`, but before the actual emulation tick
@@ -137,11 +171,9 @@ void common_emu_input_loop(odroid_gamepad_state_t *joystick, odroid_dialog_choic
     static int8_t last_key = -1;
     static bool pause_pressed = false;
     static bool macro_activated = false;
-    static uint8_t clear_frames = 0;
 
     void _repaint() {
-        ingame_overlay_loop();
-        repaint();
+        repaint_overlay(repaint);
     }
 
     if(joystick->values[ODROID_INPUT_VOLUME]){  // PAUSE/SET button
@@ -152,7 +184,7 @@ void common_emu_input_loop(odroid_gamepad_state_t *joystick, odroid_dialog_choic
                 // Do NOT save-state and then poweroff
                 last_key = ODROID_INPUT_POWER;
                 audio_stop_playing();
-                odroid_system_sleep();
+                sleep_and_open_pause_menu(game_options, _repaint, false, 0);
             }
             else if(joystick->values[ODROID_INPUT_START]){ // GAME button
 #if SD_CARD == 1
@@ -327,11 +359,7 @@ void common_emu_input_loop(odroid_gamepad_state_t *joystick, odroid_dialog_choic
         // PAUSE/SET has been released without performing any macro. Launch menu
         pause_pressed = false;
 
-        odroid_overlay_game_menu(game_options, _repaint);
-        clear_frames = 2;
-
-        common_emu_state.startup_frames = 0;
-        cpumon_stats.last_busy = 0;
+        open_pause_menu(game_options, _repaint, false, 0);
     }
     else if (!joystick->values[ODROID_INPUT_VOLUME]){
         pause_pressed = false;
@@ -340,11 +368,11 @@ void common_emu_input_loop(odroid_gamepad_state_t *joystick, odroid_dialog_choic
     }
 
     if (ingame_overlay_loop()) {
-        clear_frames = 2;
+        common_emu_state.clear_frames = 2;
     }
 
-    if (clear_frames) {
-        clear_frames--;
+    if (common_emu_state.clear_frames) {
+        common_emu_state.clear_frames--;
         lcd_sleep_while_swap_pending();
 
         // Clear the active screen buffer, caller must repaint it 
@@ -354,13 +382,13 @@ void common_emu_input_loop(odroid_gamepad_state_t *joystick, odroid_dialog_choic
     if (joystick->values[ODROID_INPUT_POWER]) {
         // Save-state and poweroff
         audio_stop_playing();
+        odroid_system_sleep_ex(SLEEP_SHOW_ANIMATION, NULL);
 #if OFF_SAVESTATE == 1 || SD_CARD == 1
         odroid_system_emu_save_state(-1);
 #else
         odroid_system_emu_save_state(0);
 #endif
-        odroid_system_shutdown();
-        odroid_system_sleep();
+        sleep_and_open_pause_menu(game_options, _repaint, true, ODROID_MENU_FLAG_DRAW_ONLY);
     }
 
     if (common_emu_state.pause_after_frames > 0) {
@@ -472,13 +500,13 @@ void cpumon_reset(void){
 #define OVERLAY_COLOR_565 0xFFFF
 
 static const uint8_t ROUND[] = {  // This is the top/left of a 8-pixel radius circle
-    0b00000001,
-    0b00000111,
+    0b00000011,
     0b00001111,
     0b00011111,
     0b00111111,
     0b01111111,
     0b01111111,
+    0b11111111,
     0b11111111,
 };
 
@@ -526,7 +554,7 @@ static void draw_darken_rectangle(pixel_t *fb, uint16_t x1, uint16_t y1, uint16_
 }
 
 __attribute__((optimize("unroll-loops")))
-static void draw_darken_rounded_rectangle(pixel_t *fb, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2){
+void draw_darken_rounded_rectangle(pixel_t *fb, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2){
     // *1 is inclusive, *2 is exclusive
     uint16_t h = y2 - y1;
     uint16_t w = x2 - x1;
@@ -606,10 +634,11 @@ void common_ingame_overlay(void) {
     uint8_t turbo_key;
     uint16_t by = INGAME_OVERLAY_BOX_Y;
 
-    uint16_t percentage = odroid_input_read_battery().percentage;
+    odroid_battery_state_t battery_state = odroid_input_read_battery();
+    uint16_t percentage = battery_state.percentage;
     if (percentage <= 15) {
         if ((get_elapsed_time() % 1000) < 300)
-            odroid_overlay_draw_battery(150, 90); 
+            odroid_overlay_draw_battery(battery_state, 150, 90); 
     }
     
     switch(common_emu_state.overlay)

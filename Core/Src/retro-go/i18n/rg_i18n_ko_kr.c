@@ -191,6 +191,7 @@ const lang_t lang_ko_kr LANG_DATA = {
     .s_Theme_CoverLightH = "커버플로우",
     .s_Caching_Game = "게임 캐싱 중",
     .s_Loading_Ram = "RAM에 로드 중",
+    .s_Pause_Banner = "PAUSE",
 
     //=====================================================================
 
@@ -199,6 +200,8 @@ const lang_t lang_ko_kr LANG_DATA = {
     .s_Type = "형식",
     .s_Size = "크기",
     .s_Close = "닫기",
+    .s_Delete_Rom_File = "Delete ROM",
+    .s_Delete_Rom_File_Confirm = "Delete '%s'?",
     .s_GameProp = "속성",
     .s_Resume_game = "계속 게임 하기",
     .s_New_game = "새로 게임 시작 하기",

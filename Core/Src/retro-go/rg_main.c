@@ -294,21 +294,6 @@ bool GLOBAL_DATA date_display_cb(odroid_dialog_choice_t *option, odroid_dialog_e
     return event == ODROID_DIALOG_ENTER;
 }
 
-static inline bool GLOBAL_DATA tab_enabled(tab_t *tab)
-{
-    int disabled_tabs = 0;
-
-    if (gui.show_empty)
-        return true;
-
-    // If all tabs are disabled then we always return true, otherwise it's an endless loop
-    for (int i = 0; i < gui.tabcount; ++i)
-        if (gui.tabs[i]->initialized && gui.tabs[i]->is_empty)
-            disabled_tabs++;
-
-    return (disabled_tabs == gui.tabcount) || (tab->initialized && !tab->is_empty);
-}
-
 #if INTFLASH_BANK == 2
 void GLOBAL_DATA soft_reset_do(void)
 {
@@ -412,7 +397,7 @@ static void GLOBAL_DATA handle_debug_menu()
             {0, curr_lang->s_Close, "", 1, NULL},
             ODROID_DIALOG_CHOICE_LAST};
 
-    odroid_overlay_dialog(curr_lang->s_Debug_Title, debuginfo, -1, &gui_redraw_callback);
+    odroid_overlay_dialog(curr_lang->s_Debug_Title, debuginfo, -1, &gui_redraw_callback, 0);
     odroid_settings_commit();
 }
 
@@ -438,7 +423,7 @@ static void GLOBAL_DATA handle_about_menu()
             ODROID_DIALOG_CHOICE_LAST};
 
     snprintf(dialog_title, sizeof(dialog_title), curr_lang->s_Retro_Go, GIT_TAG);
-    int sel = odroid_overlay_dialog(dialog_title, choices, -1, &gui_redraw_callback);
+    int sel = odroid_overlay_dialog(dialog_title, choices, -1, &gui_redraw_callback, 0);
     if (sel == 1)
     {
         // Reset settings
@@ -480,9 +465,8 @@ static void GLOBAL_DATA handle_options_menu()
         {0, curr_lang->s_Idle_power_off, timeout_value, 1, &main_menu_timeout_cb},
         ODROID_DIALOG_CHOICE_SEPARATOR,
         {0, curr_lang->s_CPU_Overclock, ov_value, 1, &main_menu_cpu_oc_cb},
-#if INTFLASH_BANK == 2
-    //{9, curr_lang->s_Reboot, curr_lang->s_Original_system, 1, NULL},
-#endif
+        ODROID_DIALOG_CHOICE_SEPARATOR,
+        {10, curr_lang->s_Power_off, "", 1, NULL},
         ODROID_DIALOG_CHOICE_LAST, // Reserve space to dynamically add more options
         ODROID_DIALOG_CHOICE_LAST};
 #if INTFLASH_BANK == 2
@@ -495,12 +479,19 @@ static void GLOBAL_DATA handle_options_menu()
         choices[ofw_boot_index].enabled = 1;
         choices[ofw_boot_index].update_cb = NULL;
     }
-    int r = odroid_overlay_settings_menu(choices, &gui_redraw_callback);
-    if (r == 9)
-        soft_reset_do();
-#else
-    odroid_overlay_settings_menu(choices, &gui_redraw_callback);
 #endif
+    int r = odroid_overlay_settings_menu(choices, &gui_redraw_callback, 0);
+    switch (r) {
+#if INTFLASH_BANK == 2
+        case 9:
+        soft_reset_do();
+        break;
+#endif
+        case 10:
+        odroid_system_shutdown();
+        odroid_system_sleep_ex(SLEEP_ENTER_STANDBY | SLEEP_SHOW_LOGO | SLEEP_SHOW_ANIMATION | SLEEP_ANIMATION_SLOW, NULL);
+        break;
+    }
 }
 
 static void GLOBAL_DATA handle_time_menu()
@@ -512,7 +503,7 @@ static void GLOBAL_DATA handle_time_menu()
             {0, curr_lang->s_Time, time_str, 1, &time_display_cb},
             {1, curr_lang->s_Date, date_str, 1, &date_display_cb},
             ODROID_DIALOG_CHOICE_LAST};
-    int sel = odroid_overlay_dialog(curr_lang->s_Time_Title, rtcinfo, 0, &gui_redraw_callback);
+    int sel = odroid_overlay_dialog(curr_lang->s_Time_Title, rtcinfo, 0, &gui_redraw_callback, 0);
 
     if (sel == 0)
     {
@@ -526,7 +517,7 @@ static void GLOBAL_DATA handle_time_menu()
                 {1, curr_lang->s_Minute, minute_value, 1, &minute_update_cb},
                 {2, curr_lang->s_Second, second_value, 1, &second_update_cb},
                 ODROID_DIALOG_CHOICE_LAST};
-        sel = odroid_overlay_dialog(curr_lang->s_Time_setup, timeoptions, 0, &gui_redraw_callback);
+        sel = odroid_overlay_dialog(curr_lang->s_Time_setup, timeoptions, 0, &gui_redraw_callback, 0);
     }
     else if (sel == 1)
     {
@@ -543,17 +534,80 @@ static void GLOBAL_DATA handle_time_menu()
                 {0, curr_lang->s_Day, day_value, 1, &day_update_cb},
                 {-1, curr_lang->s_Weekday, weekday_value, 0, &weekday_update_cb},
                 ODROID_DIALOG_CHOICE_LAST};
-        sel = odroid_overlay_dialog(curr_lang->s_Date_setup, dateoptions, 0, &gui_redraw_callback);
+        sel = odroid_overlay_dialog(curr_lang->s_Date_setup, dateoptions, 0, &gui_redraw_callback, 0);
     }
+}
+
+tab_t* gui_get_prepared_tab(int tab_index) {
+    tab_t* tab = gui_get_tab(tab_index);
+    if (!tab->initialized) {
+        gui_init_tab(tab);
+    } else {
+        gui_refresh_tab(tab);
+    }
+
+    return tab;
+}
+
+
+bool gui_is_tab_valid(tab_t* tab) {
+    return gui.show_empty || !tab->is_empty;
+}
+
+bool gui_change_tab(int direction) {
+    int old_selected_tab = gui.selected;
+    int new_selected_tab;
+
+    int traversed_tabs_count = 0;
+    int current_tab = gui.selected;
+
+    // Find first valid tab in given direction
+    while(1) {
+        if (direction > 0) {
+            current_tab++;
+            if (current_tab >= gui.tabcount) {
+                current_tab = 0;
+            }
+        } else if (direction < 0) {
+            current_tab--;
+            if (current_tab < 0) {
+                current_tab = gui.tabcount - 1;
+            }
+        }
+
+        tab_t* tab = gui_get_prepared_tab(current_tab);
+        bool is_tab_valid = gui_is_tab_valid(tab);
+        //printf("Current tab: %d - %s, initialized: %d, valid: %d\n", current_tab, tab->name, tab->initialized, is_tab_valid);
+
+        if (is_tab_valid) {
+            new_selected_tab = current_tab;
+            break;
+        }
+
+        traversed_tabs_count++;
+
+        // If none of the tabs were valid, default to the first one
+        if (traversed_tabs_count == gui.tabcount) {
+            new_selected_tab = 0;
+            break;
+        }
+    }
+
+    bool changed = old_selected_tab != new_selected_tab;
+    if (changed) {
+        gui_set_current_tab(new_selected_tab);
+    }
+
+    return changed;
 }
 
 void retro_loop()
 {
-    tab_t *tab = gui_get_current_tab();
+    tab_t *tab;
     int last_key = -1;
     int repeat = 0;
-    int selected_tab_last = -1;
     uint32_t idle_s;
+    bool power_key_pressed = false;
 
 #pragma GCC diagnostic ignored "-Wint-conversion"
 #pragma GCC diagnostic ignored "-Wdiscarded-qualifiers"
@@ -567,41 +621,28 @@ void retro_loop()
 
     gui.selected = odroid_settings_MainMenuSelectedTab_get();
 
+    tab = gui_get_prepared_tab(gui.selected);
+    if (!gui_is_tab_valid(tab)) {
+        // Find first valid tab
+        gui_change_tab(1);
+    }
+
     // This will upon power down disable the debug clock to save battery power
-    odroid_system_set_sleep_hook(&sleep_hook_callback);
+    odroid_system_set_pre_sleep_hook(&sleep_hook_callback);
 
     // This will ensure that we can still catch the CPU during WFI
     update_debug_clock();
 
     while (true)
     {
+        tab = gui_get_tab(gui.selected);
+
         wdog_refresh();
 
         if (gui.idle_start == 0)
             gui.idle_start = uptime_get();
 
         idle_s = uptime_get() - gui.idle_start;
-
-        if (gui.selected != selected_tab_last)
-        {
-            int direction = (gui.selected - selected_tab_last) < 0 ? -1 : 1;
-
-            tab = gui_set_current_tab(gui.selected);
-            if (!tab->initialized)
-            {
-                gui_init_tab(tab);
-            } else {
-                gui_refresh_tab(tab);
-            }
-
-            if (!tab_enabled(tab))
-            {
-                gui.selected += direction;
-                continue;
-            }
-
-            selected_tab_last = gui.selected;
-        }
 
         odroid_input_read_gamepad(&gui.joystick);
 
@@ -613,8 +654,17 @@ void retro_loop()
         if ((last_key < 0) || ((repeat >= 30) && (repeat % 5 == 0)))
         {
             for (int i = 0; i < ODROID_INPUT_MAX; i++)
-                if (gui.joystick.values[i])
+            {
+                uint8_t key_state = gui.joystick.values[i];
+                if (key_state)
+                {
                     last_key = i;
+                }
+                else if (i == ODROID_INPUT_POWER && power_key_pressed)
+                {
+                    power_key_pressed = false;
+                }
+            }
 
             int key_up = ODROID_INPUT_UP;
             int key_down = ODROID_INPUT_DOWN;
@@ -655,20 +705,12 @@ void retro_loop()
             }
             else if (last_key == key_left)
             {
-                gui.selected--;
-                if (gui.selected < 0)
-                {
-                    gui.selected = gui.tabcount - 1;
-                }
+                gui_change_tab(-1);
                 repeat++;
             }
             else if (last_key == key_right)
             {
-                gui.selected++;
-                if (gui.selected >= gui.tabcount)
-                {
-                    gui.selected = 0;
-                }
+                gui_change_tab(+1);
                 repeat++;
             }
             else if (last_key == ODROID_INPUT_A)
@@ -679,7 +721,7 @@ void retro_loop()
             {
                 gui_event(KEY_PRESS_B, tab);
             }
-            else if (last_key == ODROID_INPUT_POWER)
+            else if (last_key == ODROID_INPUT_POWER && !power_key_pressed)
             {
                 if ((gui.joystick.values[ODROID_INPUT_UP]) || (gui.joystick.values[ODROID_INPUT_DOWN]) ||
                     (gui.joystick.values[ODROID_INPUT_LEFT]) || (gui.joystick.values[ODROID_INPUT_RIGHT]))
@@ -687,8 +729,11 @@ void retro_loop()
                     odroid_system_switch_app(0);
                     return;
                 }
-                else
-                    odroid_system_sleep();
+                else {
+                    odroid_system_sleep_ex(SLEEP_ENTER_SLEEP_WITH_ANIMATION, NULL);
+                    gui_refresh_tab(tab);
+                    power_key_pressed = true;
+                }
             }
         }
         if (repeat > 0)
@@ -711,12 +756,7 @@ void retro_loop()
             odroid_system_sleep();
         }
 
-        // Only redraw if we haven't changed the tab as it has to be initialized first.
-        // This will remove an empty frame when changing to a new and uninitialized tab.
-        if (gui.selected == selected_tab_last)
-        {
-            gui_redraw();
-        }
+        gui_redraw();
     }
 }
 
@@ -751,72 +791,125 @@ void GLOBAL_DATA app_start_logo()
 
 void GLOBAL_DATA app_logo()
 {
-    odroid_overlay_draw_fill_rect(0, 0, ODROID_SCREEN_WIDTH, ODROID_SCREEN_HEIGHT, curr_colors->bg_c);
-    retro_logo_image *logo;
+    void _draw_logos(int darken) {
+        odroid_overlay_draw_fill_rect(0, 0, ODROID_SCREEN_WIDTH, ODROID_SCREEN_HEIGHT, curr_colors->bg_c);
 
-    for (int i = 1; i <= 10; i++)
-    {
+        retro_logo_image *logo;
+
         logo = rg_get_logo(RG_LOGO_GNW);
         if (!logo)
             return;
-        odroid_overlay_draw_logo((ODROID_SCREEN_WIDTH - logo->width) / 2, 90, RG_LOGO_GNW, 
-            get_darken_pixel_d(curr_colors->sel_c, curr_colors->bg_c, i * 10));
+        odroid_overlay_draw_logo((ODROID_SCREEN_WIDTH - logo->width) / 2, 90, RG_LOGO_GNW,
+                                 get_darken_pixel_d(curr_colors->dis_c, curr_colors->bg_c, darken));
 
         logo = rg_get_logo(RG_LOGO_RGO);
         if (!logo)
             return;
-        odroid_overlay_draw_logo((ODROID_SCREEN_WIDTH - logo->width) / 2, 174, RG_LOGO_RGO, 
-           get_darken_pixel_d(curr_colors->dis_c,curr_colors->bg_c, i * 10));
+        odroid_overlay_draw_logo((ODROID_SCREEN_WIDTH - logo->width) / 2, 174, RG_LOGO_RGO,
+                                 get_darken_pixel_d(curr_colors->dis_c, curr_colors->bg_c, darken));
 
-        lcd_sync();
         lcd_swap();
-        wdog_refresh();
-        HAL_Delay(i * 2);
+        lcd_sleep_while_swap_pending();
+        lcd_wait_for_vblank();
     }
-    for (int i = 0; i < 20; i++)
-    {
+
+    _draw_logos(100);
+}
+
+void GLOBAL_DATA app_animate_lcd_brightness(uint8_t initial, uint8_t target, uint8_t step)
+{
+    const int step_delay = 5;
+    const int min_brightness = 120;
+    int current = initial;
+
+    if (target > current && current < min_brightness) {
+        current = min_brightness;
+    } else if (current > target && target < min_brightness) {
+        target = min_brightness;
+    }
+
+    lcd_backlight_set(current);
+    while (1) {
+        if (initial > target) {
+            current -= step;
+            if (current <= target) {
+                current = target;
+                break;
+            }
+        } else {
+            current += step;
+            if (current >= target) {
+                current = target;
+                break;
+            }
+        }
+
+        lcd_backlight_set(current);
         wdog_refresh();
-        HAL_Delay(10);
+        HAL_Delay(step_delay);
+    }
+
+    wdog_refresh();
+    if (current <= min_brightness) {
+        lcd_backlight_off();
+    } else {
+        lcd_backlight_set(current);
     }
 }
 
-void GLOBAL_DATA app_sleep_logo()
-{
-    retro_logo_image *logo;
-    // As we will use ram_alloc, make sure ram_start pointer is valid
-    if (ram_start == 0) {
-        ram_start = (uint32_t)&__RAM_EMU_START__;
-    }
-    for (int i = 10; i <= 100; i+=2)
-    {
+void GLOBAL_DATA app_sleep_transition(bool show_logo, bool slow) {
+    if (show_logo) {
+        retro_logo_image *logo;
+        // As we will use ram_alloc, make sure ram_start pointer is valid
+        if (ram_start == 0) {
+            ram_start = (uint32_t)&__RAM_EMU_START__;
+        }
+
         logo = rg_get_logo(RG_LOGO_GNW);
         if (!logo)
             return;
 
-        lcd_sleep_while_swap_pending();
         odroid_overlay_draw_fill_rect(0, 0, ODROID_SCREEN_WIDTH, ODROID_SCREEN_HEIGHT, curr_colors->bg_c);
-        odroid_overlay_draw_logo((ODROID_SCREEN_WIDTH - logo->width) / 2, 90, RG_LOGO_GNW,
-            get_darken_pixel_d(curr_colors->sel_c, curr_colors->bg_c, 110 - i));
+        odroid_overlay_draw_logo((ODROID_SCREEN_WIDTH - logo->width) / 2, 90, RG_LOGO_GNW, curr_colors->sel_c);
 
         logo = rg_get_logo(RG_LOGO_RGO);
         if (!logo)
             return;
 
-        odroid_overlay_draw_logo((ODROID_SCREEN_WIDTH - logo->width) / 2, 174, RG_LOGO_RGO, 
-           get_darken_pixel_d(curr_colors->dis_c,curr_colors->bg_c, 110 - i));
-
+        odroid_overlay_draw_logo((ODROID_SCREEN_WIDTH - logo->width) / 2, 174, RG_LOGO_RGO, curr_colors->dis_c);
         lcd_swap();
-        wdog_refresh();
-        HAL_Delay(i / 10);
+        lcd_sleep_while_swap_pending();
     }
+
+    // Make logo visible for more than a split second when powering off
+    if (slow) {
+        for (int i = 0; i < 30; i++) {
+            HAL_Delay(10);
+            wdog_refresh();
+        }
+    }
+
+    app_animate_lcd_brightness(odroid_display_get_backlight_raw(), 0, slow ? 1 : 2);
 }
 
 void GLOBAL_DATA app_main(uint8_t boot_mode)
 {
     lcd_set_buffers(framebuffer1, framebuffer2);
-    sdcard_init();
-    odroid_system_init(ODROID_APPID_LAUNCHER, 32000);
-    odroid_overlay_draw_fill_rect(0, 0, ODROID_SCREEN_WIDTH, ODROID_SCREEN_HEIGHT, curr_colors->bg_c);
+
+#if DISABLE_SPLASH_SCREEN == 1
+    // Show basic boot logo early on cold boot
+    if (boot_mode != BOOT_MODE_HOT)
+    {
+        odroid_system_init(ODROID_APPID_LAUNCHER, 32000);
+        uint8_t lcd_brightness = lcd_backlight_get();
+        lcd_backlight_off();
+
+        app_logo();
+        lcd_clone();
+
+        app_animate_lcd_brightness(120, lcd_brightness, 4);
+    }
+#endif
 
     // if OFW is present, write "BOOT" to RTC backup register to always boot to Retro-Go
     // Check game_and_watch_patch project for more details
@@ -833,24 +926,23 @@ void GLOBAL_DATA app_main(uint8_t boot_mode)
     // Initialize GUI colors based on OFW type
     gui_init_colors();
 
+    sdcard_init();
     if (fs_mounted == false) {
         sdcard_error_screen();
     }
 
     // Re-initialize system now that the filesystem is mounted
-    // and apply the correct CPU overclocking level.
     odroid_system_init(ODROID_APPID_LAUNCHER, 32000);
-    uint8_t oc = odroid_settings_cpu_oc_level_get();
-    SystemClock_Config(oc);
+
+    // Show logo with the correct colors when loading from emulator
+    if (boot_mode == BOOT_MODE_HOT) {
+        app_logo();
+        lcd_clone();
+
+        app_animate_lcd_brightness(120, odroid_display_get_backlight_raw(), 7);
+    }
 
     emulators_init();
-
-    app_logo();
-
-#if DISABLE_SPLASH_SCREEN == 0
-    if (boot_mode != BOOT_MODE_WARM)
-        app_start_logo();
-#endif
 
     // Start the previously running emulator directly if it's a valid pointer.
     // If the user holds down the TIME button during startup,start the retro-go
@@ -861,11 +953,21 @@ void GLOBAL_DATA app_main(uint8_t boot_mode)
         file = emulator_get_file(startup_file);
     }
 
-    if ((file != NULL) && ((GW_GetBootButtons() & B_TIME) == 0)) {
+    // Apply the CPU overclocking level from settings when finished booting
+    uint8_t oc = odroid_settings_cpu_oc_level_get();
+    SystemClock_Config(oc);
+
+    bool resume_emulator = (file != NULL) && ((GW_GetBootButtons() & B_TIME) == 0);
+    if (resume_emulator) {
         emulator_start(file, true, true, -1);
     }
     else
     {
+#if DISABLE_SPLASH_SCREEN == 0
+        if (boot_mode != BOOT_MODE_WARM && boot_mode != BOOT_MODE_HOT)
+            app_start_logo();
+#endif
+
         retro_loop();
     }
 }

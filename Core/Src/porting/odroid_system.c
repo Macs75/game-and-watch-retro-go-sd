@@ -7,6 +7,7 @@
 #include "gui.h"
 #include "main.h"
 #include "gw_lcd.h"
+#include "gw_sleep.h"
 #if SD_CARD == 1
 #include "gw_sdcard.h"
 #include "ff.h"
@@ -17,7 +18,7 @@ static runtime_stats_t statistics;
 static runtime_counters_t counters;
 static uint skip;
 
-static sleep_hook_t sleep_hook = NULL;
+static sleep_pre_sleep_hook_t pre_sleep_hook = NULL;
 
 #define TURBOS_SPEED 10
 
@@ -50,7 +51,8 @@ void odroid_system_init(int appId, int sampleRate)
 void odroid_system_emu_init(state_handler_t load_cb,
                             state_handler_t save_cb,
                             screenshot_handler_t screenshot_cb,
-                            shutdown_handler_t shutdown_cb)
+                            shutdown_handler_t shutdown_cb,
+                            sleep_post_wakeup_handler_t sleep_post_wakeup_cb)
 {
     // currentApp.gameId = crc32_le(0, buffer, sizeof(buffer));
     currentApp.gameId = 0;
@@ -58,6 +60,7 @@ void odroid_system_emu_init(state_handler_t load_cb,
     currentApp.handlers.saveState = save_cb;
     currentApp.handlers.screenshot = screenshot_cb;
     currentApp.handlers.shutdown = shutdown_cb;
+    currentApp.handlers.sleep_post_wakeup = sleep_post_wakeup_cb;
 
     printf("%s: Init done. GameId=%08lX\n", __func__, currentApp.gameId);
 }
@@ -438,27 +441,50 @@ void odroid_system_switch_app(int app)
          * harmless.
          */
 
-        // Unmount Fs and Deinit SD Card if needed
 #if SD_CARD == 1
-        if (fs_mounted) {
-            f_unmount("");
-        }
-        switch (sdcard_hw_type) {
-            case SDCARD_HW_SPI1:
-                sdcard_deinit_spi1();
-                break;
-            case SDCARD_HW_OSPI1:
-                sdcard_deinit_ospi1();
-                break;
-            default:
-                break;
-        }
+        // Unmount Fs and Deinit SD Card if needed
+        sdcard_deinit();
 #endif
 
+#if 1
+        // Jumping directly to bank2 entrypoint instead of rebooting is much faster
+
+        void __attribute__((naked)) _start_app(void (*const pc)(void), uint32_t sp) {
+            __asm("           \n\
+                  msr msp, r1 /* load r1 into MSP */\n\
+                  bx r0       /* branch to the address at r0 */\n\
+            ");
+        }
+
+        void _boot_bank2(void) {
+            uint32_t sp = *((uint32_t *)FLASH_BANK2_BASE);
+            uint32_t pc = *((uint32_t *)FLASH_BANK2_BASE + 1);
+
+            // Check that Bank 2 content is valid
+            __set_MSP(sp);
+            __set_PSP(sp);
+            HAL_MPU_Disable();
+            _start_app((void (*const)(void))pc, (uint32_t)sp);
+        }
+
+        boot_magic_set(BOOT_MAGIC_EMULATOR);
+
+        app_animate_lcd_brightness(odroid_display_get_backlight_raw(), 0, 10);
+
+        HAL_DeInit();
+
+        SCB_InvalidateDCache();
+        SCB_InvalidateICache();
+
+        while (1) {
+            _boot_bank2();
+        }
+#else
         *((uint32_t *)0x2001FFF8) = 0x544F4F42;              // "BOOT"
         *((uint32_t *)0x2001FFFC) = (uint32_t)&__INTFLASH__; // vector table
 
         NVIC_SystemReset();
+#endif
         break;
     case 9:
         *((uint32_t *)0x2001FFF8) = 0x544F4F42;              // "BOOT"
@@ -471,7 +497,7 @@ void odroid_system_switch_app(int app)
     }
 }
 
-runtime_stats_t odroid_system_get_stats()
+runtime_stats_t odroid_system_get_stats(bool reset_stats)
 {
     float tickTime = (get_elapsed_time() - counters.resetTime);
 
@@ -480,31 +506,59 @@ runtime_stats_t odroid_system_get_stats()
     statistics.skippedFPS = counters.skippedFrames / (tickTime / 1000.f);
     statistics.totalFPS = counters.totalFrames / (tickTime / 1000.f);
 
-    skip = 1;
-    counters.busyTime = 0;
-    counters.totalFrames = 0;
-    counters.skippedFrames = 0;
-    counters.resetTime = get_elapsed_time();
+    if (reset_stats) {
+        skip = 1;
+        counters.busyTime = 0;
+        counters.totalFrames = 0;
+        counters.skippedFrames = 0;
+        counters.resetTime = get_elapsed_time();
+    }
 
     return statistics;
 }
 
-void odroid_system_set_sleep_hook(sleep_hook_t callback)
+void odroid_system_set_pre_sleep_hook(sleep_pre_sleep_hook_t callback)
 {
-    sleep_hook = callback;
+    pre_sleep_hook = callback;
+}
+
+static void odroid_system_sleep_post_wakeup_handler() {
+    // Reset idle timer
+    gui.idle_start = uptime_get();
+
+    if (currentApp.handlers.sleep_post_wakeup) {
+        (*currentApp.handlers.sleep_post_wakeup)();
+    }
+}
+
+static void odroid_system_sleep_internal(system_sleep_flags_t flags, sleep_pre_wakeup_callback_t pre_wakeup_callback)
+{
+    if (pre_sleep_hook != NULL)
+    {
+        pre_sleep_hook();
+    }
+    odroid_settings_StartupFile_set(ACTIVE_FILE);
+    odroid_settings_commit();
+
+    if (flags & SLEEP_SHOW_ANIMATION) {
+        app_sleep_transition((flags & SLEEP_SHOW_LOGO) != 0, (flags & SLEEP_ANIMATION_SLOW) != 0);
+    }
+
+    gui_save_current_tab();
+
+    if (flags & SLEEP_ENTER_SLEEP) {
+        GW_EnterDeepSleep(false, pre_wakeup_callback, &odroid_system_sleep_post_wakeup_handler);
+    } else if (flags & SLEEP_ENTER_STANDBY) {
+        GW_EnterDeepSleep(true, NULL, NULL);
+    }
+}
+
+void odroid_system_sleep_ex(system_sleep_flags_t flags, sleep_pre_wakeup_callback_t pre_wakeup_callback)
+{
+    odroid_system_sleep_internal(flags, pre_wakeup_callback);
 }
 
 void odroid_system_sleep(void)
 {
-    if (sleep_hook != NULL)
-    {
-        sleep_hook();
-    }
-    odroid_settings_StartupFile_set(ACTIVE_FILE);
-
-    // odroid_settings_commit();
-    gui_save_current_tab();
-    app_sleep_logo();
-
-    GW_EnterDeepSleep();
+    odroid_system_sleep_internal(SLEEP_ENTER_SLEEP_WITH_ANIMATION, NULL);
 }

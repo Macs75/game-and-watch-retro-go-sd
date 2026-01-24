@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <string.h>
 
 #include "gw_lcd.h"
@@ -22,6 +23,24 @@ extern DAC_HandleTypeDef hdac2;
 
 uint32_t active_framebuffer;
 uint32_t frame_counter;
+uint32_t last_frequency = 60;
+
+#define HAL_DAC_ENABLED(__HANDLE__, __DAC_Channel__) \
+  (((__HANDLE__)->Instance->CR & (DAC_CR_EN1 << ((__DAC_Channel__) & 0x10UL))))
+
+uint8_t lcd_backlight_get()
+{
+#ifdef HAL_DAC_MODULE_ENABLED
+  if (!HAL_DAC_ENABLED(&hdac1, DAC_CHANNEL_1)) {
+    return 0;
+  }
+
+  // Convert 12-bit to 8-bit
+  return HAL_DAC_GetValue(&hdac1, DAC_CHANNEL_1) >> 4;
+#else
+  return HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_4) == GPIO_PIN_SET ? 255 : 0;
+#endif
+}
 
 void lcd_backlight_off()
 {
@@ -70,6 +89,8 @@ static void gw_lcd_spi_tx(SPI_HandleTypeDef *spi, uint8_t *pData) {
 }
 
 void lcd_deinit(SPI_HandleTypeDef *spi) {
+  __HAL_LTDC_DISABLE_IT(&hltdc, LTDC_IT_LI | LTDC_IT_RR);
+
   // Power off
   gw_set_power_1V8(0);
   gw_set_power_3V3(0);
@@ -92,29 +113,22 @@ void lcd_clear_buffers() {
   memset(fb2, 0, sizeof(framebuffer2));
 }
 
-void lcd_init(SPI_HandleTypeDef *spi, LTDC_HandleTypeDef *ltdc) {
+void lcd_init(SPI_HandleTypeDef *spi, LTDC_HandleTypeDef *ltdc, lcd_init_flags_t flags) {
   // Disable LCD Chip select
   gw_lcd_set_chipselect(0);
 
-  // LCD reset
-  gw_lcd_set_reset(0);
-
   // Wake up !
   // Enable 1.8V &3V3 power supply
+  gw_lcd_set_reset(0);
   gw_set_power_3V3(1);
-  HAL_Delay(2);
   gw_set_power_1V8(1);
-  HAL_Delay(50);
-  wdog_refresh();
 
   // Lets go, bootup sequence.
   /* reset sequence */
-  gw_lcd_set_reset(0);
-  HAL_Delay(1);
   gw_lcd_set_reset(1);
-  HAL_Delay(20);
+  HAL_Delay(5);
   gw_lcd_set_reset(0);
-  HAL_Delay(50);
+  HAL_Delay(20);
   wdog_refresh();
 
   gw_lcd_spi_tx(spi, (uint8_t *)"\x08\x80");
@@ -131,12 +145,19 @@ void lcd_init(SPI_HandleTypeDef *spi, LTDC_HandleTypeDef *ltdc) {
   gw_lcd_spi_tx(spi, (uint8_t *)"\x14\x80");
   wdog_refresh();
 
+  // Wait for screen to finish initializing
+  HAL_Delay(50);
+  wdog_refresh();
+
+  if (flags & LCD_INIT_CLEAR_BUFFERS) {
+    lcd_clear_buffers();
+  }
+
   HAL_LTDC_SetAddress(ltdc,(uint32_t) &fb1, 0);
-
-  lcd_clear_buffers();
-
   HAL_LTDC_ProgramLineEvent(&hltdc, 239);
   __HAL_LTDC_ENABLE_IT(&hltdc, LTDC_IT_LI | LTDC_IT_RR);
+
+  printf("LCD: Finished init\n");
 }
 
 void HAL_LTDC_ReloadEventCallback (LTDC_HandleTypeDef *hltdc) {
@@ -268,6 +289,8 @@ void lcd_set_refresh_rate(uint32_t frequency) {
     return;
   }
 
+  last_frequency = frequency;
+
   /** reconfig PLL3 */
 
   RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = {0};
@@ -286,4 +309,8 @@ void lcd_set_refresh_rate(uint32_t frequency) {
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK) {
     Error_Handler();
   }
+}
+
+uint32_t lcd_get_last_refresh_rate() {
+  return last_frequency;
 }

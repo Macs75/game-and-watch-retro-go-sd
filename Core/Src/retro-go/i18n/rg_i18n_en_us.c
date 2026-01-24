@@ -184,6 +184,7 @@ const lang_t lang_en_us LANG_DATA = {
     .s_Theme_CoverLightH = "CoverLight H",
     .s_Caching_Game = "Caching game file",
     .s_Loading_Ram = "Loading in RAM",
+    .s_Pause_Banner = "PAUSE",
     //=====================================================================
 
     // Core\Src\retro-go\rg_emulators.c ====================================
@@ -191,6 +192,8 @@ const lang_t lang_en_us LANG_DATA = {
     .s_Type = "Type",
     .s_Size = "Size",
     .s_Close = "Close",
+    .s_Delete_Rom_File = "Delete ROM",
+    .s_Delete_Rom_File_Confirm = "Delete '%s'?",
     .s_GameProp = "Properties",
     .s_Resume_game = "Resume game",
     .s_New_game = "New game",

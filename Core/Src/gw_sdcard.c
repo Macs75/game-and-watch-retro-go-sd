@@ -1,6 +1,7 @@
 #include "gw_flash.h"
 #include "gw_linker.h"
 #include "gw_lcd.h"
+#include "gw_sleep.h"
 #include <string.h>
 #include <time.h>
 #include <stdio.h>
@@ -21,15 +22,17 @@ bool fs_mounted = false;
 static FRESULT cause;
 
 void sdcard_error_screen(void) {
+    lcd_backlight_set(180);
+    
     char buf[64];
     int idle_s = uptime_get();
 
     switch (cause) {
         case FR_NOT_READY:
-            draw_error_screen("No SD CARD found", "Insert SD Card", "Press a key to retry");
+            draw_error_screen("No SD CARD found", "Insert SD Card", "Press any key to power off");
             break;
         default:
-            draw_error_screen("SD CARD ERROR", "Unable to mount SD Card", "Press a key to retry");
+            draw_error_screen("SD CARD ERROR", "Unable to mount SD Card", "Press any key to power off");
             break;
     }
 
@@ -52,8 +55,8 @@ void sdcard_error_screen(void) {
             break;
         }
     }
-    app_sleep_logo();
-    GW_EnterDeepSleep();
+
+    GW_EnterDeepSleep(true, NULL, NULL);
 }
 
 /*************************
@@ -91,6 +94,23 @@ void sdcard_init(void) {
 
     // No SD Card detected
     sdcard_hw_type = SDCARD_HW_NO_SD_FOUND;
+}
+
+void sdcard_deinit(void) {
+    if (fs_mounted) {
+      f_unmount("");
+      fs_mounted = false;
+    }
+    switch (sdcard_hw_type) {
+      case SDCARD_HW_SPI1:
+        sdcard_deinit_spi1();
+        break;
+      case SDCARD_HW_OSPI1:
+        sdcard_deinit_ospi1();
+        break;
+      default:
+        break;
+    }
 }
 
 void sdcard_init_spi1() {

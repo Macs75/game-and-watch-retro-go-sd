@@ -189,6 +189,7 @@ const lang_t lang_ja_jp LANG_DATA = {
     .s_Theme_CoverLightH = "CoverLight横",
     .s_Caching_Game = "ゲームをキャッシュ中",
     .s_Loading_Ram = "RAMに読み込み中",
+    .s_Pause_Banner = "PAUSE",
     //=====================================================================
 
     // Core\Src\retro-go\rg_emulators.c ====================================
@@ -197,6 +198,8 @@ const lang_t lang_ja_jp LANG_DATA = {
     .s_Type = "タイプ",
     .s_Size = "サイズ",
     .s_Close = "閉じる",
+    .s_Delete_Rom_File = "Delete ROM",
+    .s_Delete_Rom_File_Confirm = "Delete '%s'?",
     .s_GameProp = "プロパティ",
     .s_Resume_game = "続きから遊ぶ",
     .s_New_game = "最初から遊ぶ",

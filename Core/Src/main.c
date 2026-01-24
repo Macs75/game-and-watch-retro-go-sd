@@ -119,6 +119,7 @@ static void MX_NVIC_Init(void);
 /* USER CODE BEGIN PFP */
 
 void app_main(uint8_t boot_mode);
+void app_animate_lcd_brightness(uint8_t initial, uint8_t target, uint8_t step);
 
 /* USER CODE END PFP */
 
@@ -227,55 +228,6 @@ uint32_t uptime_get(void)
   return uptime_s;
 }
 
-void GW_EnterDeepSleep(void)
-{
-  // Stop SAI DMA (audio)
-  audio_stop_playing();
-
-  // Enable wakup by PIN1, the power button
-  HAL_PWR_EnableWakeUpPin(PWR_WAKEUP_PIN1_LOW);
-
-  lcd_backlight_off();
-
-  // Leave a trace in RAM that we entered standby mode
-  boot_magic = BOOT_MAGIC_STANDBY;
-
-  // Unmount Fs and Deinit SD Card if needed
-#if SD_CARD == 1
-  if (fs_mounted) {
-    f_unmount("");
-  }
-  switch (sdcard_hw_type) {
-    case SDCARD_HW_SPI1:
-      sdcard_deinit_spi1();
-      break;
-    case SDCARD_HW_OSPI1:
-      sdcard_deinit_ospi1();
-      break;
-    default:
-      break;
-  }
-#endif
-
-  // Delay 500ms to give us a chance to attach a debugger in case
-  // we end up in a suspend-loop.
-  for (int i = 0; i < 10; i++) {
-      wdog_refresh();
-      HAL_Delay(50);
-  }
-  // Deinit the LCD, save power.
-  lcd_deinit(&hspi2);
-
-  HAL_PWR_EnterSTANDBYMode();
-
-  // Execution stops here, this function will not return
-  while(1) {
-    // If we for some reason survive until here, let's just reboot
-    HAL_NVIC_SystemReset();
-  }
-
-}
-
 // Returns buttons that were pressed at boot
 uint32_t GW_GetBootButtons(void)
 {
@@ -320,9 +272,11 @@ int main(void)
   uint8_t trigger_wdt_bsod = 0;
   uint8_t boot_mode = BOOT_MODE_APP;
 
+#if 0
   for(int i = 0; i < 1000000; i++) {
     __NOP();
   }
+#endif
 
 #if SD_CARD == 0
   // Nullpointer redzone
@@ -332,11 +286,14 @@ int main(void)
 #pragma GCC diagnostic pop
 #endif
 
+  // Reset the log write pointer
   // Don't reset the logbuf when rebooting from a watchdog reset
-  if (boot_magic != BOOT_MAGIC_WATCHDOG) {
+  if (boot_magic != BOOT_MAGIC_WATCHDOG && boot_magic != BOOT_MAGIC_EMULATOR) {
     log_idx = 0;
     logbuf[0] = '\0';
   }
+
+  printf("Log started.\n");
 
   switch (boot_magic) {
   case BOOT_MAGIC_STANDBY:
@@ -349,6 +306,14 @@ int main(void)
   case BOOT_MAGIC_WATCHDOG:
     printf("Boot from watchdog reset!\nboot_magic=0x%08lx\n", boot_magic);
     trigger_wdt_bsod = 1;
+    break;
+  case BOOT_MAGIC_EMULATOR:
+    printf("Boot from emulator!\n");
+    boot_mode = BOOT_MODE_HOT;
+
+    // Refresh watchdog asap to prevent watchdog reset on hot boot
+    wdog_enable();
+    wdog_refresh();
     break;
   default:
     if ((boot_magic & BOOT_MAGIC_BSOD_MASK) == BOOT_MAGIC_BSOD) {
@@ -363,9 +328,6 @@ int main(void)
 
   // Leave a trace that indicates a warm reset
   boot_magic = BOOT_MAGIC_RESET;
-
-  // Reset the log write pointer
-  log_idx = 0;
 
   /* USER CODE END 1 */
 
@@ -385,7 +347,11 @@ int main(void)
   /* USER CODE END Init */
 
   /* Configure the system clock */
+#if ENABLE_BOOT_OC == 1
+  SystemClock_Config(2);
+#else
   SystemClock_Config(0);
+#endif
 
   /* USER CODE BEGIN SysInit */
 
@@ -411,27 +377,9 @@ int main(void)
   // Save the button states as early as possible
   boot_buttons = buttons_get();
 
-  lcd_backlight_off();
-
-  /* Power off LCD and external Flash */
-  lcd_deinit(&hspi2);
-
-  // Keep this
-  // at least 8 frames at the end of power down (lcd_deinit())
-  // 4 x 50 ms => 200ms
-  for (int i = 0; i < 4; i++) {
-    wdog_refresh();
-    HAL_Delay(50);
-  }
-
   /* Power on LCD and external Flash */
-  lcd_init(&hspi2, &hltdc);
-
-  // Keep this
-  for (int i = 0; i < 4; i++) {
-    wdog_refresh();
-    HAL_Delay(50);
-  }
+  lcd_backlight_off();
+  lcd_init(&hspi2, &hltdc, LCD_INIT_CLEAR_BUFFERS);
 
   if (trigger_wdt_bsod) {
     BSOD(BSOD_WATCHDOG, 0, 0);
@@ -475,6 +423,7 @@ int main(void)
   switch (boot_mode) {
   case BOOT_MODE_APP:
   case BOOT_MODE_WARM:
+  case BOOT_MODE_HOT:
     wdog_enable();
     // Launch the emulator
     app_main(boot_mode);

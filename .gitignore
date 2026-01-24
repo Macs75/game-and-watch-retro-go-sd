@@ -6,6 +6,7 @@ Makefile
 Core/Inc/rom_info.h
 Core/Inc/gittag.h
 roms
+sd_content
 
 release
 
@@ -38,3 +39,4 @@ screenshot.png
 .clang-format
 .idea/
 cmake-build-debug
+.gitignore.local

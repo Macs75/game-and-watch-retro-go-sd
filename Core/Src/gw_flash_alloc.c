@@ -156,7 +156,7 @@ static bool circular_flash_write(const char *file_path,
                                  uint32_t *data_size,
                                  uint32_t *flash_address_out,
                                  bool byte_swap,
-                                 void_progress_cb progress_cb)
+                                 file_progress_cb_t progress_cb)
 {
     uint8_t buffer[16 * 1024];
     uint32_t total_bytes_processed = 0;
@@ -171,6 +171,11 @@ static bool circular_flash_write(const char *file_path,
         *data_size = ftell(file);
         fseek(file, 0, SEEK_SET);
     }
+
+    if (progress_cb) {
+        progress_cb(*data_size, 0, 0);
+    }
+
     uint32_t flash_write_base = get_extflash_base();
 
     // If there is not enough space available, write the file at the beginning of the flash
@@ -216,7 +221,7 @@ static bool circular_flash_write(const char *file_path,
 
             if (progress_cb) {
                 progress = (uint8_t)((total_bytes_processed * 100) / (*data_size));
-                progress_cb(progress);
+                progress_cb(*data_size, total_bytes_processed, progress);
             }
         }
 
@@ -246,7 +251,7 @@ void flash_alloc_reset()
     remove(METADATA_FILE);
 }
 
-uint8_t *store_file_in_flash(const char *file_path, uint32_t *file_size_p, bool byte_swap, void_progress_cb progress_cb)
+uint8_t *store_file_in_flash(const char *file_path, uint32_t *file_size_p, bool byte_swap, file_progress_cb_t progress_cb)
 {
     if (metadata == NULL)
     {

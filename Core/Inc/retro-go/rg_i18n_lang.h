@@ -166,12 +166,15 @@ typedef struct
     const char *s_Theme_CoverLightH;
     const char *s_Caching_Game;
     const char *s_Loading_Ram;
+    const char *s_Pause_Banner;
     //=====================================================================
     // Core\Src\retro-go\rg_emulators.c ====================================
     const char *s_File;
     const char *s_Type;
     const char *s_Size;
     const char *s_Close;
+    const char *s_Delete_Rom_File;
+    const char *s_Delete_Rom_File_Confirm;
     const char *s_GameProp;
     const char *s_Resume_game;
     const char *s_New_game;

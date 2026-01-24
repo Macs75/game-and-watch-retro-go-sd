@@ -188,6 +188,7 @@ const lang_t lang_it_it LANG_DATA = {
     .s_Theme_CoverLightH = "Mini Oriz",
     .s_Caching_Game = "Caching del gioco",
     .s_Loading_Ram = "Caricamento in RAM",
+    .s_Pause_Banner = "PAUSE",
     //=====================================================================
 
     // Core\Src\retro-go\rg_emulators.c ====================================
@@ -195,6 +196,8 @@ const lang_t lang_it_it LANG_DATA = {
     .s_Type = "Tipo",
     .s_Size = "Dimensione",
     .s_Close = "Chiudi",
+    .s_Delete_Rom_File = "Delete ROM",
+    .s_Delete_Rom_File_Confirm = "Delete '%s'?",
     .s_GameProp = "Proprietà",
     .s_Resume_game = "Riprendi gioco",
     .s_New_game = "Nuova partita",
