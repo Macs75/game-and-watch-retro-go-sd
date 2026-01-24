@@ -1348,7 +1348,9 @@ void draw_game_status_bar(runtime_stats_t* stats)
     odroid_battery_state_t battery_state = odroid_input_read_battery();
     odroid_overlay_draw_battery(battery_state, ODROID_SCREEN_WIDTH - 24, pad_text + 1);
 
-    bool show_battery_percentage = battery_state.state == ODROID_BATTERY_CHARGE_STATE_DISCHARGING;
+    bool show_battery_percentage =
+        battery_state.state == ODROID_BATTERY_CHARGE_STATE_DISCHARGING ||
+        battery_state.state == ODROID_BATTERY_CHARGE_STATE_FULL;
     if (show_battery_percentage) {
         snprintf(header, 60, "%u%%", battery_state.percentage);
 
