@@ -166,8 +166,8 @@ retro_logo_image *rg_get_logo(int16_t logo_index) {
         return NULL;
     }
 
-    logo_image_cache = ram_malloc(MAX_LOGO_COUNT * sizeof(retro_logo_image*));
-    assert(logo_image_cache != NULL);
+    logo_image_cache = itc_malloc(MAX_LOGO_COUNT * sizeof(retro_logo_image*));
+    assert(logo_image_cache != (void *)0xffffffff);
 
     int current_logo_index = 0;
     while (1) {
@@ -182,10 +182,8 @@ retro_logo_image *rg_get_logo(int16_t logo_index) {
         size_t data_size = ((width + 7) >> 3) * height; // width aligned to 8 * height / 8
         data_size = (data_size + 3) & ~3; // align to 4 bytes
 
-        printf("%ux%u, %u\n", width, height, data_size);
-
-        retro_logo_image* dest = ram_malloc(sizeof(retro_logo_image) + data_size);
-        assert(dest != 0);
+        retro_logo_image* dest = itc_malloc(sizeof(retro_logo_image) + data_size);
+        assert(dest != (void *)0xffffffff);
         dest->width = width;
         dest->height = height;
         read = fread(dest->logo, 1, data_size, file);
