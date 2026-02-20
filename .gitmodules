@@ -54,3 +54,6 @@
 [submodule "external/PokeMini-go"]
 	path = external/PokeMini-go
 	url = https://github.com/sylverb/PokeMini-go.git
+[submodule "external/oswan-go"]
+	path = external/oswan-go
+	url = https://github.com/sylverb/oswan-go.git
