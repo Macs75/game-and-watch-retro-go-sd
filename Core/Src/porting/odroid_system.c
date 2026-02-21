@@ -8,6 +8,7 @@
 #include "main.h"
 #include "gw_lcd.h"
 #include "gw_sleep.h"
+#include "odroid_settings.h"
 #if SD_CARD == 1
 #include "gw_sdcard.h"
 #include "ff.h"
@@ -522,9 +523,26 @@ void odroid_system_set_pre_sleep_hook(sleep_pre_sleep_hook_t callback)
     pre_sleep_hook = callback;
 }
 
+static void dbgmcu_restore_clock_after_wake(void)
+{
+    /* Restore debug clock after wake so JTAG works again (e.g. in Auto mode) */
+    if (odroid_settings_DebugMenuDebugClockAlwaysOn_get()) {
+        DBGMCU->CR = DBGMCU_CR_DBG_SLEEPCD |
+                     DBGMCU_CR_DBG_STOPCD |
+                     DBGMCU_CR_DBG_STANDBYCD |
+                     DBGMCU_CR_DBG_TRACECKEN |
+                     DBGMCU_CR_DBG_CKCDEN |
+                     DBGMCU_CR_DBG_CKSRDEN;
+    } else {
+        DBGMCU->CR = DBGMCU_CR_DBG_SLEEPCD;
+    }
+}
+
 static void odroid_system_sleep_post_wakeup_handler() {
     // Reset idle timer
     gui.idle_start = uptime_get();
+
+    dbgmcu_restore_clock_after_wake();
 
     if (currentApp.handlers.sleep_post_wakeup) {
         (*currentApp.handlers.sleep_post_wakeup)();
