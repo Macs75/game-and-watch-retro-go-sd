@@ -74,12 +74,15 @@ To install the hardware mod, you need:
 
 - SD Card flex PCB adapter: 
 
-  <img src="assets/MicroSD_Zelda.png" height="200">
-  <img src="assets/MicroSD_Mario.png" height="200">
+  <img src="assets/sm_black_top.png" height="150">
 
-  - [PrimoAngelo Zelda Gerber file](https://github.com/sylverb/game-and-watch-retro-go-sd/raw/refs/heads/main/assets/MicroSD_Zelda_Final.zip)
-  - [PrimoAngelo Mario Gerber file](https://github.com/sylverb/game-and-watch-retro-go-sd/raw/refs/heads/main/assets/MicroSD_Mario_Final.zip)  
-  - [Tim Schuerewegen / hundshamer Zelda v2 Gerber file](https://github.com/sylverb/game-and-watch-retro-go-sd/raw/refs/heads/main/assets/GnW_SD_v2.zip) (deprecated)
+  - [Tim Schuerewegen / hundshamer Zelda v2 Gerber file](https://github.com/sylverb/game-and-watch-retro-go-sd/raw/refs/heads/main/assets/GnW_SD_v2.zip) (recommended for Zelda install)
+
+  <img src="assets/MicroSD_Mario.png" height="200">
+  <img src="assets/MicroSD_Zelda.png" height="200">
+  
+  - [PrimoAngelo Mario Gerber file](https://github.com/sylverb/game-and-watch-retro-go-sd/raw/refs/heads/main/assets/MicroSD_Mario_Final.zip) (recommended for Mario install)
+  - [PrimoAngelo Zelda Gerber file](https://github.com/sylverb/game-and-watch-retro-go-sd/raw/refs/heads/main/assets/MicroSD_Zelda_Final.zip)  
 
    
 
