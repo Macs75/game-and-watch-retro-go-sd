@@ -84,8 +84,6 @@ To install the hardware mod, you need:
   - [PrimoAngelo Mario Gerber file](https://github.com/sylverb/game-and-watch-retro-go-sd/raw/refs/heads/main/assets/MicroSD_Mario_Final.zip) (recommended for Mario install)
   - [PrimoAngelo Zelda Gerber file](https://github.com/sylverb/game-and-watch-retro-go-sd/raw/refs/heads/main/assets/MicroSD_Zelda_Final.zip)  
 
-   
-
 - 1x MX25U51245GZ4I00 (64MB SPI flash 1.8v) or bigger
 - 1x 0402 100k resistor (0805 will fit too)
 - 2x 0402 1uf (0805 will fit too)
