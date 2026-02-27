@@ -4,6 +4,8 @@
 
 A comprehensive emulator collection for the Nintendo® Game & Watch™ with SD Card support, allowing you to play your favorite retro games on the go!
 
+If you are looking for the mod without SD Card (Flash mod only), check https://github.com/sylverb/game-and-watch-retro-go
+
 ## Table of Contents
 - [Support Development](#support-development)
 - [Features](#features)
@@ -103,9 +105,14 @@ To install the hardware mod, you need:
 
 3. **Patched OFW / Bootloader Installation**
    - For dual boot (recommended):
-     ```bash
-     gnwmanager flash-patch zelda internal_flash_backup_zelda.bin flash_backup_zelda.bin --bootloader
-     ```
+     * Zelda model :
+       ```bash
+       gnwmanager flash-patch zelda internal_flash_backup_zelda.bin flash_backup_zelda.bin --bootloader
+       ```
+     * Mario model :
+       ```bash
+       gnwmanager flash-patch mario internal_flash_backup_mario.bin flash_backup_mario.bin --bootloader
+       ```
    - Without dual boot (not recommended but could help troubleshooting issues if dual boot fails to install):
      ```bash
      gnwmanager flash-bootloader bank1
@@ -149,6 +156,7 @@ To install the hardware mod, you need:
 ### Cover Art Generator (gencovers.py)
 
 Due to memory and power constrains of the Game & Watch hardware, it's not possible to use full size png/jpg/bmp images for cover art.
+Due to current implementation of the covers management, having covers with different sizes for a given system can cause incorrect alignement of images in "CoverLight H" view
 
 The `tools/gencovers.py` script helps you generate cover art thumbnails for your games. It can process individual images or batch process all images in a directory.
 
