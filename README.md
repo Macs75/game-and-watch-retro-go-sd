@@ -13,8 +13,11 @@ If you are looking for the mod without SD Card (Flash mod only), check https://g
   - [Pre-modded Options](#pre-modded-options)
   - [Hardware Requirements](#hardware-requirements)
   - [Installation Steps](#installation-steps)
+  - [Cutting the shell for SD Card slot](#cutting-the-shell-for-sd-card-slot)
   - [Shell Replacement](#shell-replacement)
   - [Retro-Go-SD Update Steps](#retro-go-sd-update-steps)
+  - [Bootloader Update Steps](#bootloader-update-steps)
+- [Tools](#tools)
 - [Supported Systems](#supported-systems)
   - [Emulators](#emulators)
   - [SNES Ports](#snes-ports)
@@ -138,6 +141,9 @@ To install the hardware mod, you need:
       ![](assets/firmware_update.png)
    - You can start filling the created folders on your sd card with uncompressed roms (in /roms/gb, roms/gbc, roms/nes, ...)
 
+### Cutting the shell for SD Card slot
+   To help to properly cut the shell, facelesstech designed some drill jig, they can be found [here](https://www.printables.com/model/1269910-zelda-game-and-watch-sd-card-drill-jig/files)
+
 ### Shell Replacement
    For people who do not want to cut their original shell, Aradia (on Discord) has designed a replacement back shell with SD card access.
    Note that this shell is designed for the GnW_SD_v2.zip version of the flex cable (the one provided earlier on this page)
@@ -149,7 +155,23 @@ To install the hardware mod, you need:
    - Download latest `retro-go_update.bin` from [releases page](https://github.com/sylverb/game-and-watch-retro-go-sd/releases/latest)
    - Place the file in the root folder of your SD card
    - Insert SD card and start the console
-   - Once the update is done, you are ready to use new version
+   - Turn on the Game & Watch and wait for the installation to complete. Once the update is done, you are ready to use new version
+
+### Bootloader Update Steps
+   The bootloader is the application which is allowing to install/update retro-go from update file as described in [Retro-Go-SD Update Steps](#retro-go-sd-update-steps).
+
+   It is possible to update the bootloader (check bootloader changelog to check if you have latest version and if it could be useful for you to update).
+   
+   Even if the operation should be safe, be aware that in case of problem during the bootloader update, you'll have to reprogram the bootloader using JTAG as described in [Installation] chapter.
+
+   To perform a bootloader update, perform the following steps :
+   - Download latest gnw_bootloader.bin (no dual boot) / gnw_bootloader_0x08032000.bin (dual boot) files from [Bootloader releases page](https://github.com/sylverb/game-and-watch-bootloader/releases)
+   - Copy these files to the root folder of the SD Card.
+   - Copy the `retro-go_update.bin` (v1.1.1 above) file to the root directory of your micro SD card (check previous chapter for instructions)
+   - Insert the micro SD card into your Game & Watch.
+   - Turn on the Game & Watch and wait for the installation to complete. It will update Retro-Go and also update the bootloader.
+
+   Note that the update process will detect if you have dual boot or not and will try to install gnw_bootloader.bin if you don't have dual boot and gnw_bootloader_0x08032000.bin if you have dual boot. If you are not sure of what is the right file for you, just put both files and the correct one will be used.
 
 ## Tools
 
