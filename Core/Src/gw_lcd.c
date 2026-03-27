@@ -18,8 +18,10 @@ uint16_t *fb2 = framebuffer2;
 
 extern LTDC_HandleTypeDef hltdc;
 
+#ifdef HAL_DAC_MODULE_ENABLED
 extern DAC_HandleTypeDef hdac1;
 extern DAC_HandleTypeDef hdac2;
+#endif
 
 uint32_t active_framebuffer;
 uint32_t frame_counter;
@@ -38,7 +40,7 @@ uint8_t lcd_backlight_get()
   // Convert 12-bit to 8-bit
   return HAL_DAC_GetValue(&hdac1, DAC_CHANNEL_1) >> 4;
 #else
-  return HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_4) == GPIO_PIN_SET ? 255 : 0;
+  return HAL_GPIO_ReadPin(GPIO_LCD_BRIGHTNESS_1_GPIO_Port, GPIO_LCD_BRIGHTNESS_1_Pin) == GPIO_PIN_SET ? 255 : 0;
 #endif
 }
 
@@ -66,16 +68,16 @@ void lcd_backlight_on()
 }
 
 static void gw_set_power_1V8(uint32_t p) {
-  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_1, p == 0 ? GPIO_PIN_SET : GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIO_POWER_1V8_GPIO_Port, GPIO_POWER_1V8_Pin, p == 0 ? GPIO_PIN_SET : GPIO_PIN_RESET);
 }
 static void gw_set_power_3V3(uint32_t p) {
-  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_4, p == 1 ? GPIO_PIN_SET : GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIO_POWER_3V3_GPIO_Port, GPIO_POWER_3V3_Pin, p == 1 ? GPIO_PIN_SET : GPIO_PIN_RESET);
 }
 static void gw_lcd_set_chipselect(uint32_t p) {
-  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, p == 0 ? GPIO_PIN_SET : GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIO_LCD_CS_GPIO_Port, GPIO_LCD_CS_Pin, p == 0 ? GPIO_PIN_SET : GPIO_PIN_RESET);
 }
 static void gw_lcd_set_reset(uint32_t p) {
-  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_8, p == 0 ? GPIO_PIN_SET : GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIO_LCD_RESET_GPIO_Port, GPIO_LCD_RESET_Pin, p == 0 ? GPIO_PIN_SET : GPIO_PIN_RESET);
 }
 
 static void gw_lcd_spi_tx(SPI_HandleTypeDef *spi, uint8_t *pData) {
