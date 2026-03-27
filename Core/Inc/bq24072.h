@@ -13,6 +13,9 @@ typedef enum {
 
 int32_t bq24072_init(void);
 
+void bq24072_interrupts_enable(void);
+void bq24072_interrupts_disable(void);
+
 void bq24072_handle_power_good(void);
 void bq24072_handle_charging(void);
 

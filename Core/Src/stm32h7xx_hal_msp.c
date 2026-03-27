@@ -100,10 +100,10 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef* hadc)
     /**ADC1 GPIO Configuration
     PC4     ------> ADC1_INP4
     */
-    GPIO_InitStruct.Pin = GPIO_PIN_4;
+    GPIO_InitStruct.Pin = GPIO_CHARGER_BAT_LEVEL_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
-    HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+    HAL_GPIO_Init(GPIO_CHARGER_BAT_LEVEL_GPIO_Port, &GPIO_InitStruct);
 
     /* ADC1 interrupt Init */
     HAL_NVIC_SetPriority(ADC_IRQn, 0, 0);
@@ -134,7 +134,7 @@ void HAL_ADC_MspDeInit(ADC_HandleTypeDef* hadc)
     /**ADC1 GPIO Configuration
     PC4     ------> ADC1_INP4
     */
-    HAL_GPIO_DeInit(GPIOC, GPIO_PIN_4);
+    HAL_GPIO_DeInit(GPIO_CHARGER_BAT_LEVEL_GPIO_Port, GPIO_CHARGER_BAT_LEVEL_Pin);
 
     /* ADC1 interrupt DeInit */
     HAL_NVIC_DisableIRQ(ADC_IRQn);
@@ -172,10 +172,10 @@ void HAL_DAC_MspInit(DAC_HandleTypeDef* hdac)
     PA4     ------> DAC1_OUT1
     PA5     ------> DAC1_OUT2
     */
-    GPIO_InitStruct.Pin = GPIO_PIN_4|GPIO_PIN_5;
+    GPIO_InitStruct.Pin = GPIO_LCD_BRIGHTNESS_1_Pin|GPIO_LCD_BRIGHTNESS_2_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
-    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+    HAL_GPIO_Init(GPIO_LCD_BRIGHTNESS_1_GPIO_Port, &GPIO_InitStruct);
 
   /* USER CODE BEGIN DAC1_MspInit 1 */
 
@@ -205,10 +205,10 @@ void HAL_DAC_MspInit(DAC_HandleTypeDef* hdac)
     /**DAC2 GPIO Configuration
     PA6     ------> DAC2_OUT1
     */
-    GPIO_InitStruct.Pin = GPIO_PIN_6;
+    GPIO_InitStruct.Pin = GPIO_LCD_BRIGHTNESS_3_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
-    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+    HAL_GPIO_Init(GPIO_LCD_BRIGHTNESS_3_GPIO_Port, &GPIO_InitStruct);
 
   /* USER CODE BEGIN DAC2_MspInit 1 */
 
@@ -240,7 +240,7 @@ void HAL_DAC_MspDeInit(DAC_HandleTypeDef* hdac)
     PA4     ------> DAC1_OUT1
     PA5     ------> DAC1_OUT2
     */
-    HAL_GPIO_DeInit(GPIOA, GPIO_PIN_4|GPIO_PIN_5);
+    HAL_GPIO_DeInit(GPIO_LCD_BRIGHTNESS_1_GPIO_Port, GPIO_LCD_BRIGHTNESS_1_Pin|GPIO_LCD_BRIGHTNESS_2_Pin);
 
   /* USER CODE BEGIN DAC1_MspDeInit 1 */
 
@@ -260,7 +260,7 @@ void HAL_DAC_MspDeInit(DAC_HandleTypeDef* hdac)
     /**DAC2 GPIO Configuration
     PA6     ------> DAC2_OUT1
     */
-    HAL_GPIO_DeInit(GPIOA, GPIO_PIN_6);
+    HAL_GPIO_DeInit(GPIO_LCD_BRIGHTNESS_3_GPIO_Port, GPIO_LCD_BRIGHTNESS_3_Pin);
 
   /* USER CODE BEGIN DAC2_MspDeInit 1 */
 
@@ -855,12 +855,12 @@ void HAL_SAI_MspInit(SAI_HandleTypeDef* hsai)
     PE5     ------> SAI1_SCK_A
     PE6     ------> SAI1_SD_A
     */
-    GPIO_InitStruct.Pin = GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6;
+    GPIO_InitStruct.Pin = SAI1_FS_Pin|SAI1_SCK_Pin|SAI1_SD_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
     GPIO_InitStruct.Alternate = GPIO_AF6_SAI1;
-    HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+    HAL_GPIO_Init(SAI1_FS_GPIO_Port, &GPIO_InitStruct);
 
     /* Peripheral DMA init*/
 
@@ -893,27 +893,27 @@ void HAL_SAI_MspInit(SAI_HandleTypeDef* hsai)
 
 void HAL_SAI_MspDeInit(SAI_HandleTypeDef* hsai)
 {
-/* SAI1 */
-    if(hsai->Instance==SAI1_Block_A)
-    {
+  /* SAI1 */
+  if(hsai->Instance==SAI1_Block_A)
+  {
     SAI1_client --;
     if (SAI1_client == 0)
-      {
-      /* Peripheral clock disable */
-       __HAL_RCC_SAI1_CLK_DISABLE();
-      HAL_NVIC_DisableIRQ(SAI1_IRQn);
-      }
+    {
+    /* Peripheral clock disable */
+     __HAL_RCC_SAI1_CLK_DISABLE();
+    HAL_NVIC_DisableIRQ(SAI1_IRQn);
+    }
 
     /**SAI1_A_Block_A GPIO Configuration
     PE4     ------> SAI1_FS_A
     PE5     ------> SAI1_SCK_A
     PE6     ------> SAI1_SD_A
     */
-    HAL_GPIO_DeInit(GPIOE, GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6);
+    HAL_GPIO_DeInit(SAI1_FS_GPIO_Port, SAI1_FS_Pin|SAI1_SCK_Pin|SAI1_SD_Pin);
 
     HAL_DMA_DeInit(hsai->hdmarx);
     HAL_DMA_DeInit(hsai->hdmatx);
-    }
+  }
 }
 
 /* USER CODE BEGIN 1 */

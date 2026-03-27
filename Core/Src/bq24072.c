@@ -3,6 +3,7 @@
 
 #include <stm32h7xx_hal.h>
 
+#include "main.h"
 #include "bq24072.h"
 
 #include "utils.h"
@@ -27,8 +28,8 @@ static const struct {
     uint32_t        pin;
     GPIO_TypeDef*   bank;
 } bq_pins[BQ24072_PIN_COUNT] = {
-    [BQ24072_PIN_CHG]   = { .pin = GPIO_PIN_7, .bank = GPIOE},
-    [BQ24072_PIN_PGOOD] = { .pin = GPIO_PIN_2, .bank = GPIOA},
+    [BQ24072_PIN_CHG]   = { .pin = GPIO_CHARGER_CHARGING_Pin, .bank = GPIO_CHARGER_CHARGING_GPIO_Port},
+    [BQ24072_PIN_PGOOD] = { .pin = GPIO_CHARGER_POWERGOOD_Pin, .bank = GPIO_CHARGER_POWERGOOD_GPIO_Port},
 };
 
 extern ADC_HandleTypeDef hadc1;
@@ -70,6 +71,29 @@ int32_t bq24072_init(void)
     HAL_TIM_Base_Start_IT(&htim1);
 
     return 0;
+}
+
+void bq24072_interrupts_enable(void)
+{
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+
+    /*Configure GPIO pin : GPIO_CHARGER_POWERGOOD_Pin */
+    GPIO_InitStruct.Pin = GPIO_CHARGER_POWERGOOD_Pin;
+    GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    HAL_GPIO_Init(GPIO_CHARGER_POWERGOOD_GPIO_Port, &GPIO_InitStruct);
+
+    /*Configure GPIO pin : GPIO_CHARGER_CHARGING_Pin */
+    GPIO_InitStruct.Pin = GPIO_CHARGER_CHARGING_Pin;
+    GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    HAL_GPIO_Init(GPIO_CHARGER_CHARGING_GPIO_Port, &GPIO_InitStruct);
+}
+
+void bq24072_interrupts_disable(void)
+{
+  HAL_GPIO_DeInit(GPIO_CHARGER_POWERGOOD_GPIO_Port, GPIO_CHARGER_POWERGOOD_Pin);  
+  HAL_GPIO_DeInit(GPIO_CHARGER_CHARGING_GPIO_Port, GPIO_CHARGER_CHARGING_Pin);  
 }
 
 void bq24072_handle_power_good(void)

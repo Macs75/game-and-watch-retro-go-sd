@@ -229,27 +229,6 @@ void WWDG_IRQHandler(void)
 }
 
 /**
-  * @brief This function handles EXTI line2 interrupt.
-  */
-void EXTI2_IRQHandler(void)
-{
-  /* USER CODE BEGIN EXTI2_IRQn 0 */
-
-  if(__HAL_GPIO_EXTI_GET_FLAG(GPIO_PIN_2))
-  {
-    bq24072_handle_power_good();
-  }
-
-  /* USER CODE END EXTI2_IRQn 0 */
-  HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_2);
-  /* USER CODE BEGIN EXTI2_IRQn 1 */
-
-  __HAL_GPIO_EXTI_CLEAR_FLAG(GPIO_PIN_2);
-
-  /* USER CODE END EXTI2_IRQn 1 */
-}
-
-/**
   * @brief This function handles DMA1 stream0 global interrupt.
   */
 void DMA1_Stream0_IRQHandler(void)
@@ -278,22 +257,43 @@ void ADC_IRQHandler(void)
 }
 
 /**
+  * @brief This function handles EXTI line2 interrupt.
+  */
+void EXTI2_IRQHandler(void)
+{
+  /* USER CODE BEGIN EXTI2_IRQn 0 */
+
+  if(__HAL_GPIO_EXTI_GET_FLAG(GPIO_CHARGER_POWERGOOD_Pin))
+  {
+    bq24072_handle_power_good();
+  }
+
+  /* USER CODE END EXTI2_IRQn 0 */
+  HAL_GPIO_EXTI_IRQHandler(GPIO_CHARGER_POWERGOOD_Pin);
+  /* USER CODE BEGIN EXTI2_IRQn 1 */
+
+  __HAL_GPIO_EXTI_CLEAR_FLAG(GPIO_CHARGER_POWERGOOD_Pin);
+
+  /* USER CODE END EXTI2_IRQn 1 */
+}
+
+/**
   * @brief This function handles EXTI line[9:5] interrupts.
   */
 void EXTI9_5_IRQHandler(void)
 {
   /* USER CODE BEGIN EXTI9_5_IRQn 0 */
 
-  if(__HAL_GPIO_EXTI_GET_FLAG(GPIO_PIN_7))
+  if(__HAL_GPIO_EXTI_GET_FLAG(GPIO_CHARGER_CHARGING_Pin))
   {
     bq24072_handle_charging();
   }
 
   /* USER CODE END EXTI9_5_IRQn 0 */
-  HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_7);
+  HAL_GPIO_EXTI_IRQHandler(GPIO_CHARGER_CHARGING_Pin);
   /* USER CODE BEGIN EXTI9_5_IRQn 1 */
 
-  __HAL_GPIO_EXTI_CLEAR_FLAG(GPIO_PIN_7);
+  __HAL_GPIO_EXTI_CLEAR_FLAG(GPIO_CHARGER_CHARGING_Pin);
 
   /* USER CODE END EXTI9_5_IRQn 1 */
 }

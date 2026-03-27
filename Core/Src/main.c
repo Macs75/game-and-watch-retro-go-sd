@@ -1182,42 +1182,46 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin Output Level */
   /* E8=CE_n USB Charger  */ 
-  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_8, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIO_CHARGER_CE_GPIO_Port, GPIO_CHARGER_CE_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   /* PB12 LCD Chip Select line pull-up VAux1V8 */
-  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(GPIO_LCD_CS_GPIO_Port, GPIO_LCD_CS_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
   /* PD8 LCD Reset line low speed with capacitor 100nf to GND */
-  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_8, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIO_LCD_RESET_GPIO_Port, GPIO_LCD_RESET_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
    /* PD1 1.8V-> 1.8Vaux Disable power for LCD & External FLASH */
   /* PD4 3.7V-> 3.3V    Enable   power for LCD */
 
   /* Power off 1.8Vaux and 3.3V */
-  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_1, GPIO_PIN_SET);
-  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_4, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIO_POWER_1V8_GPIO_Port, GPIO_POWER_1V8_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(GPIO_POWER_3V3_GPIO_Port, GPIO_POWER_3V3_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : GPIO_Speaker_enable_Pin PE8 */
-  GPIO_InitStruct.Pin = GPIO_Speaker_enable_Pin|GPIO_PIN_8;
+  /*Configure GPIO pins : GPIO_Speaker_enable_Pin GPIO_CHARGER_CE_Pin */
+  GPIO_InitStruct.Pin = GPIO_Speaker_enable_Pin|GPIO_CHARGER_CE_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+  static_assert(((size_t) GPIO_Speaker_enable_GPIO_Port) == (size_t) GPIO_CHARGER_CE_GPIO_Port);
+  HAL_GPIO_Init(GPIO_Speaker_enable_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : BTN_PAUSE_Pin BTN_GAME_Pin BTN_TIME_Pin */
   GPIO_InitStruct.Pin = BTN_PAUSE_Pin|BTN_GAME_Pin|BTN_TIME_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+  static_assert(((size_t) BTN_PAUSE_GPIO_Port) == (size_t) BTN_GAME_GPIO_Port);
+  static_assert(((size_t) BTN_PAUSE_GPIO_Port) == (size_t) BTN_TIME_GPIO_Port);
+  HAL_GPIO_Init(BTN_PAUSE_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : BTN_START_Pin BTN_SELECT_Pin */
   GPIO_InitStruct.Pin = BTN_START_Pin|BTN_SELECT_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+  static_assert(((size_t) BTN_START_GPIO_Port) == (size_t) BTN_SELECT_GPIO_Port);
+  HAL_GPIO_Init(BTN_START_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : BTN_PWR_Pin */
   GPIO_InitStruct.Pin = BTN_PWR_Pin;
@@ -1225,30 +1229,22 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(BTN_PWR_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PA2 */
-  GPIO_InitStruct.Pin = GPIO_PIN_2;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+  bq24072_interrupts_enable();
 
-  /*Configure GPIO pin : PE7 */
-  GPIO_InitStruct.Pin = GPIO_PIN_7;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : PB12 */
-  GPIO_InitStruct.Pin = GPIO_PIN_12;
+  /*Configure GPIO pin : GPIO_LCD_CS_Pin */
+  GPIO_InitStruct.Pin = GPIO_LCD_CS_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIO_LCD_CS_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PD8 PD1 PD4 */
-  GPIO_InitStruct.Pin = GPIO_PIN_8|GPIO_PIN_1|GPIO_PIN_4;
+  /*Configure GPIO pins : GPIO_LCD_RESET_Pin GPIO_POWER_1V8_Pin GPIO_POWER_3V3_Pin */
+  GPIO_InitStruct.Pin = GPIO_LCD_RESET_Pin|GPIO_POWER_1V8_Pin|GPIO_POWER_3V3_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  static_assert(((size_t) GPIO_LCD_RESET_GPIO_Port) == (size_t) GPIO_POWER_1V8_GPIO_Port);
+  static_assert(((size_t) GPIO_LCD_RESET_GPIO_Port) == (size_t) GPIO_POWER_3V3_GPIO_Port);
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
   /*Configure GPIO pins : BTN_A_Pin BTN_Left_Pin BTN_Down_Pin BTN_Right_Pin
@@ -1260,11 +1256,11 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI2_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI2_IRQn);
+  HAL_NVIC_SetPriority(GPIO_CHARGER_POWERGOOD_EXTI_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(GPIO_CHARGER_POWERGOOD_EXTI_IRQn);
 
-  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
+  HAL_NVIC_SetPriority(GPIO_CHARGER_CHARGING_EXTI_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(GPIO_CHARGER_CHARGING_EXTI_IRQn);
 }
 
 /* USER CODE BEGIN 4 */

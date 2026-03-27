@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include "stm32h7xx_hal.h"
 #include "main.h"
+#include "bq24072.h"
 #include "odroid_settings.h"
 #include "odroid_display.h"
 #include "odroid_audio.h"
@@ -20,6 +21,9 @@ extern SPI_HandleTypeDef hspi2;
 static void SleepModeEnterAndResume(sleep_pre_wakeup_callback_t pre_wakeup_callback, sleep_post_wakeup_callback_t post_wakeup_callback) {
   printf("[Sleep] Entering STOP2 mode\n");
 
+  // Prevent charger interrupts from waking up the device
+  bq24072_interrupts_disable();
+
   HAL_PWREx_ClearWakeupFlag(PWR_FLAG_WKUP1);
   HAL_PWREx_EnterSTOP2Mode(PWR_LOWPOWERREGULATOR_ON, PWR_STOPENTRY_WFI);
   wdog_refresh();
@@ -28,6 +32,11 @@ static void SleepModeEnterAndResume(sleep_pre_wakeup_callback_t pre_wakeup_callb
   // Restore clocks
   SystemClock_Config(odroid_settings_cpu_oc_level_get());
   HAL_ResumeTick();
+
+  // Restore charger
+  bq24072_interrupts_enable();
+  bq24072_handle_charging();
+  bq24072_handle_power_good();
 
   // Restore LCD
   lcd_backlight_off();
