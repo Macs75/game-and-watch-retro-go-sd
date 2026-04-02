@@ -609,7 +609,7 @@ void retro_loop()
     uint32_t idle_s;
     bool power_key_pressed = false;
 
-    // Variable para medir el tiempo que lleva el botón pulsado
+    // Variable to measure the time the button has been pressed
     static uint32_t key_press_start_time = 0; 
 
 #pragma GCC diagnostic ignored "-Wint-conversion"
