@@ -38,6 +38,7 @@
 
 unsigned char *gwenesis_linux_rom;
 size_t gwenesis_linux_rom_size;
+size_t gwenesis_linux_rom_storage_size;
 char gwenesis_linux_rom_path[512];
 
 /* Gwenesis core expects these symbols when built with TARGET_GNW. */
@@ -50,14 +51,11 @@ void rg_i18n_linux_set_lang(void);
 
 #define SCALE 2
 
-#ifdef GWENESIS_EMBEDDED_ROM
 extern const unsigned char gwenesis_embedded_rom[];
 extern const uint32_t gwenesis_embedded_rom_size;
 extern const char gwenesis_embedded_rom_source[];
-#endif
 
 static odroid_gamepad_state_t joystick;
-extern unsigned char button_state[3];
 
 int16_t gwenesis_ym2612_buffer[GWENESIS_AUDIO_BUFFER_LENGTH_PAL];
 int ym2612_index;
@@ -80,7 +78,7 @@ static unsigned int gwenesis_refresh_rate;
 static int gwenesis_lpfilter = 0;
 
 extern unsigned char gwenesis_vdp_regs[0x20];
-extern unsigned int gwenesis_vdp_status;
+extern unsigned short gwenesis_vdp_status;
 extern int hint_pending;
 extern unsigned int screen_width, screen_height;
 
@@ -90,8 +88,6 @@ static void gwenesis_sound_submit(void);
 static void run_gwenesis_emulation(void);
 
 void gwenesis_io_get_buttons(void);
-
-static int gwenesis_rom_heap_allocated;
 
 #ifdef TARGET_GNW
 /* Desktop (linux) memory allocators for the Gwenesis "GNW" target. */
@@ -106,57 +102,13 @@ void *ram_malloc(size_t size) { return malloc(size); }
 void *ram_calloc(size_t count, size_t size) { return calloc(count, size); }
 #endif
 
-static int load_rom_file(const char *path)
-{
-    FILE *f = fopen(path, "rb");
-    if (!f) {
-        fprintf(stderr, "Cannot open ROM: %s (%s)\n", path, strerror(errno));
-        return -1;
-    }
-    fseek(f, 0, SEEK_END);
-    long sz = ftell(f);
-    if (sz <= 0 || sz > (long)0x800000) {
-        fprintf(stderr, "Invalid ROM size %ld\n", sz);
-        fclose(f);
-        return -1;
-    }
-    rewind(f);
-    gwenesis_linux_rom = malloc((size_t)sz);
-    if (!gwenesis_linux_rom) {
-        fclose(f);
-        return -1;
-    }
-    if (fread(gwenesis_linux_rom, 1, (size_t)sz, f) != (size_t)sz) {
-        fprintf(stderr, "Read error\n");
-        free(gwenesis_linux_rom);
-        gwenesis_linux_rom = NULL;
-        fclose(f);
-        return -1;
-    }
-    fclose(f);
-    gwenesis_linux_rom_size = (size_t)sz;
-    ROM_DATA = (const unsigned char *)gwenesis_linux_rom;
-    ROM_DATA_LENGTH = (unsigned int)gwenesis_linux_rom_size;
-    strncpy(gwenesis_linux_rom_path, path, sizeof(gwenesis_linux_rom_path) - 1);
-    gwenesis_linux_rom_path[sizeof(gwenesis_linux_rom_path) - 1] = '\0';
-
-    memset(&linux_active_file, 0, sizeof(linux_active_file));
-    strncpy(linux_active_file.path, gwenesis_linux_rom_path, sizeof(linux_active_file.path) - 1);
-    linux_active_file.size = (uint32_t)gwenesis_linux_rom_size;
-    ACTIVE_FILE = &linux_active_file;
-
-    gwenesis_rom_heap_allocated = 1;
-    return 0;
-}
-
-#ifdef GWENESIS_EMBEDDED_ROM
 static int load_embedded_rom(void)
 {
     gwenesis_linux_rom = (unsigned char *)gwenesis_embedded_rom;
     gwenesis_linux_rom_size = (size_t)gwenesis_embedded_rom_size;
     ROM_DATA = (const unsigned char *)gwenesis_embedded_rom;
     ROM_DATA_LENGTH = (unsigned int)gwenesis_embedded_rom_size;
-    snprintf(gwenesis_linux_rom_path, sizeof(gwenesis_linux_rom_path), "/embedded/%s",
+    snprintf(gwenesis_linux_rom_path, sizeof(gwenesis_linux_rom_path), "./%s",
              gwenesis_embedded_rom_source);
 
     memset(&linux_active_file, 0, sizeof(linux_active_file));
@@ -164,20 +116,7 @@ static int load_embedded_rom(void)
     linux_active_file.size = (uint32_t)gwenesis_linux_rom_size;
     ACTIVE_FILE = &linux_active_file;
 
-    gwenesis_rom_heap_allocated = 0;
     return 0;
-}
-#endif
-
-static void print_usage(const char *argv0)
-{
-    fprintf(stderr, "Usage: %s", argv0);
-#ifdef GWENESIS_EMBEDDED_ROM
-    fprintf(stderr, " [rom.bin|gen|md]\n");
-    fprintf(stderr, "  (sans argument: ROM embarquée depuis loaded_gwenesis_rom.c)\n");
-#else
-    fprintf(stderr, " <rom.bin|gen|md>\n");
-#endif
 }
 
 void gwenesis_io_get_buttons(void)
@@ -248,6 +187,8 @@ static void gwenesis_sound_submit(void)
             sound_buffer[i] = (int16_t)(mixed * factor / 512);
         }
     }
+
+    odroid_audio_submit(sound_buffer, sound_buffer_length);
 }
 
 static void run_gwenesis_emulation(void)
@@ -368,22 +309,8 @@ static void run_gwenesis_emulation(void)
 
 int main(int argc, char **argv)
 {
-#ifdef GWENESIS_EMBEDDED_ROM
-    if (argc >= 2) {
-        if (load_rom_file(argv[1]) != 0)
-            return 1;
-    } else {
-        if (load_embedded_rom() != 0)
-            return 1;
-    }
-#else
-    if (argc < 2) {
-        print_usage(argv[0]);
+    if (load_embedded_rom() != 0)
         return 1;
-    }
-    if (load_rom_file(argv[1]) != 0)
-        return 1;
-#endif
 
     rg_i18n_linux_set_lang();
 
@@ -393,7 +320,7 @@ int main(int argc, char **argv)
     }
 
     SDL_Window *window = SDL_CreateWindow(
-        "retro-go gwenesis (linux debug)",
+        "retro-go gwenesis (linux)",
         SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
         GW_LCD_WIDTH * SCALE, GW_LCD_HEIGHT * SCALE, 0);
     if (!window) {
@@ -410,14 +337,9 @@ int main(int argc, char **argv)
     gwenesis_sdl_set_video(window, renderer);
     lcd_init(NULL, NULL, LCD_INIT_CLEAR_BUFFERS);
 
-    fprintf(stderr, "[gwenesis-linux] starting emulation (rom %zu bytes)\n",
-            gwenesis_linux_rom_size);
-    fflush(stderr);
-
     run_gwenesis_emulation();
 
+    odroid_audio_terminate();
     SDL_Quit();
-    if (gwenesis_rom_heap_allocated)
-        free(gwenesis_linux_rom);
     return 0;
 }

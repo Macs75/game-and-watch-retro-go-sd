@@ -10,6 +10,8 @@
 #include "odroid_settings.h"
 #include "rg_i18n.h"
 
+extern uint32_t odroid_audio_get_queued_size_bytes(void);
+
 const uint8_t volume_tbl[ODROID_AUDIO_VOLUME_MAX + 1] = {
     (uint8_t)(UINT8_MAX * 0.00f),
     (uint8_t)(UINT8_MAX * 0.06f),
@@ -68,8 +70,17 @@ void common_emu_input_loop_handle_turbo(odroid_gamepad_state_t *joystick)
 void common_emu_sound_sync(bool use_nops)
 {
     (void)use_nops;
-    /* Frame pacing (~60 Hz); avoids busy-wait on dma_counter */
-    SDL_Delay(16);
+    /* Pace emulation from the real audio device queue to avoid jitter/chops. */
+    const uint32_t bytes_per_sample = sizeof(int16_t); /* mono S16 */
+    const uint32_t frame_samples = (uint32_t)(odroid_audio_sample_rate_get() / 60);
+    const uint32_t target_queue_bytes = frame_samples * bytes_per_sample * 3;
+    const uint32_t max_queue_bytes = frame_samples * bytes_per_sample * 6;
+
+    while (odroid_audio_get_queued_size_bytes() > max_queue_bytes)
+        SDL_Delay(1);
+
+    if (odroid_audio_get_queued_size_bytes() > target_queue_bytes)
+        SDL_Delay(1);
 }
 
 bool common_emu_sound_loop_is_muted(void)
