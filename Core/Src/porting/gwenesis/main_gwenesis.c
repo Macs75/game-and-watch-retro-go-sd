@@ -52,8 +52,6 @@ __license__ = "GPLv3"
 
 #define ENABLE_DEBUG_OPTIONS 0
 
-static char *headerString = "Gene0000";
-
 static unsigned int gwenesis_show_debug_bar = 0;
 
 static bool isZelda;
@@ -448,19 +446,33 @@ void gwenesis_save_local_data(FILE *file) {
   fwrite((unsigned char *)&gwenesis_lpfilter, 4, 1, file);
 }
 
-void gwenesis_load_local_data(FILE *file) {
+void gwenesis_load_local_data(FILE *file, int ss_version) {
   fread((unsigned char *)&ABCkeys_value, 4, 1, file);
   fread((unsigned char *)&PAD_A_def, 4, 1, file);
   fread((unsigned char *)&PAD_B_def, 4, 1, file);
   fread((unsigned char *)&PAD_C_def, 4, 1, file);
-  fread((unsigned char *)&gwenesis_lpfilter, 4, 1, file);
-  switch (gwenesis_lpfilter) {
-  case 1:
-    strcpy(AudioFilter_str, curr_lang->s_md_Option_ON);
-    break;
-  default:
-    strcpy(AudioFilter_str, curr_lang->s_md_Option_OFF);
-    break;
+  if (ss_version == 0) {
+    uint8_t legacy_audio_filter[16];
+    fread(legacy_audio_filter, 1, sizeof(legacy_audio_filter), file);
+    fread((unsigned char *)&gwenesis_lpfilter, 4, 1, file);
+    switch (gwenesis_lpfilter) {
+      case 1:
+        strcpy(AudioFilter_str, curr_lang->s_md_Option_ON);
+        break;
+      default:
+        strcpy(AudioFilter_str, curr_lang->s_md_Option_OFF);
+        break;
+    }
+  } else {
+    fread((unsigned char *)&gwenesis_lpfilter, 4, 1, file);
+    switch (gwenesis_lpfilter) {
+      case 1:
+        strcpy(AudioFilter_str, curr_lang->s_md_Option_ON);
+        break;
+      default:
+        strcpy(AudioFilter_str, curr_lang->s_md_Option_OFF);
+        break;
+    }
   }
 }
 
@@ -469,7 +481,7 @@ static bool gwenesis_system_SaveState(const char *savePathName) {
   if (file == NULL) {
       return false;
   }
-  fwrite((unsigned char *)headerString, 8, 1, file);
+  gwenesis_savestate_write_file_header(file);
   gwenesis_save_state(file);
   gwenesis_save_local_data(file);
   fclose(file);
@@ -478,16 +490,19 @@ static bool gwenesis_system_SaveState(const char *savePathName) {
 }
 
 static bool gwenesis_system_LoadState(const char *savePathName) {
-  char header[8];
+  unsigned char header[GWENESIS_SAVESTATE_HEADER_SIZE];
   FILE *file = fopen(savePathName, "rb");
   if (file == NULL) {
       return false;
   }
-  fread((unsigned char *)header, sizeof(header), 1, file);
-  if (memcmp(headerString, header, 8) == 0) {
-      gwenesis_load_state(file);
-      gwenesis_load_local_data(file);
+  if (fread(header, 1, sizeof(header), file) != sizeof(header)) {
+      fclose(file);
+      return false;
   }
+  int ss_version = gwenesis_savestate_version_from_header(header);
+  printf("GWENESIS: Loading state version %d\n", ss_version);
+  gwenesis_load_state(file, ss_version);
+  gwenesis_load_local_data(file, ss_version);
   fclose(file);
 
   gwenesis_sram_load();
