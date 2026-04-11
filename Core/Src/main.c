@@ -400,6 +400,8 @@ int main(void)
 
   OSPI_Init(&hospi1);
 
+  // ITCM hot code copy happens in main_pico8.c (loaded from SD card)
+
   #if SD_CARD == 0
   // Copy instructions and data from extflash to axiram
   void *copy_areas[3];

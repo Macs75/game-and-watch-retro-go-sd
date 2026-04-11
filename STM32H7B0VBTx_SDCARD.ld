@@ -112,6 +112,9 @@ MEMORY
 
   /* PICO-8 code (sentinel address, patched to QSPI XIP at runtime) */
   PICO8_CODE (x) : ORIGIN = 0xBEEF0000,   LENGTH = 512K
+
+  /* External flash (QSPI XIP) — for ITCM hot code LMA */
+  EXTFLASH   (xr) : ORIGIN = __EXTFLASH_START__, LENGTH = 32M
 }
 
 
@@ -121,8 +124,23 @@ SECTIONS
   ._itcram :
   {
     __itcram_start__ = .;
-    __itcram_end__ = .;
   } > ITCMRAM
+
+  /* Hot code: VMA in ITCM (zero-wait), LMA in external flash.
+     Loaded from SD card (/cores/pico8_itcm.bin) at pico8 init.
+     lvm(17KB) + ltable(6KB) + lgc(7KB) = ~30KB */
+  _sitcram_hot = LOADADDR(._itcram_hot);
+  ._itcram_hot :
+  {
+    __itcram_hot_start__ = .;
+    . = ALIGN(4);
+    build/pico8/lvm.o (.text .text.* .rodata .rodata.*)
+    build/pico8/ltable.o (.text .text.* .rodata .rodata.*)
+    build/pico8/lgc.o (.text .text.* .rodata .rodata.*)
+    . = ALIGN(4);
+    __itcram_hot_end__ = .;
+    __itcram_end__ = .;
+  } > ITCMRAM AT> EXTFLASH
 
   /* Uncached and unbuffered memory for the LCD framebuffers */
   ._ram_uc (NOLOAD) :
@@ -666,8 +684,11 @@ INCLUDE build/fceumm_mappers.ld
     build/pico8/main_pico8.o (.text .text* .data .data* .rodata .rodata*)
     build/pico8/p8_multicart.o (.text .text* .data .data* .rodata .rodata*)
     _PICO8_MAIN_CODE_END = .;
-    /* All remaining .text/.rodata/.data (hot runtime code) */
-    build/pico8/*.o (.text .text* .rodata .rodata* .data .data*)
+    /* All remaining code + data (hot runtime).
+       lvm.o+ltable.o .text/.rodata excluded — in ._itcram_hot for ITCM.
+       Their .data stays here via the wildcard at the end. */
+    EXCLUDE_FILE(build/pico8/lvm.o build/pico8/ltable.o build/pico8/lgc.o) build/pico8/*.o (.text .text* .rodata .rodata*)
+    build/pico8/*.o (.data .data*)
     . = ALIGN(4);
     _OVERLAY_PICO8_LOAD_END = .;
   }

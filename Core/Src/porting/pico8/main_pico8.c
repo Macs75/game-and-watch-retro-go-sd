@@ -33,6 +33,10 @@ extern "C" {
 extern "C" {
     extern uint32_t __ahbram_end__;
     extern uint16_t __AHBRAM_LENGTH__;
+    /* ITCM bump allocator (gw_malloc.c) */
+    void itc_init(void);
+    void* itc_malloc(size_t size);
+    void* itc_calloc(size_t count, size_t size);
 }
 
 /* Initialize the secondary TLSF pool in unused AHB-RAM (~120KB).
@@ -71,29 +75,65 @@ void p8_srd_pool_setup(void) {
     }
 }
 
-/* Initialize ITCM pool from remaining ITCM after back_page + cart ROM.
+/* Initialize ITCM pool from remaining ITCM after back_page.
  * ITCM is zero-wait-state RAM (480MHz) — fastest on the chip.
  * We reset the ITCM bump allocator first to reclaim space used by
- * retro-go's logo cache (not needed during gameplay). */
-static uint8_t* embedded_cart_rom = NULL;  /* forward decl — used by ITCM setup + snapshot */
+ * retro-go's logo cache (not needed during gameplay).
+ * cart_rom is allocated from main pool (AXI SRAM) — only used by reload(). */
+static uint8_t* embedded_cart_rom = NULL;  /* allocated in main pool by p8_embedded_snapshot_rom */
+
+static int itcm_setup_done = 0;
 
 void p8_itcm_pool_setup(void) {
-    extern void itc_init(void);
-    extern void* itc_malloc(size_t size);
+
+    /* Load ITCM hot code (luaV_execute + ltable + lgc) from SD card.
+     * Always reload — multicart switches re-enter this function. */
+    {
+        extern uint32_t __itcram_hot_start__, __itcram_hot_end__;
+        uint32_t dst = (uint32_t)&__itcram_hot_start__;
+        uint32_t len = (uint32_t)&__itcram_hot_end__ - dst;
+        if (len > 0) {
+            FILE *f = fopen("/cores/pico8_itcm.bin", "rb");
+            if (f) {
+                size_t read = fread((void*)dst, 1, len, f);
+                fclose(f);
+                printf("P8: ITCM hot code loaded from SD: %u bytes to 0x%08lx\n",
+                       (unsigned)read, dst);
+            } else {
+                printf("P8: WARNING: /cores/pico8_itcm.bin not found — VM runs from AXI SRAM\n");
+            }
+        }
+    }
+
+    /* Only do bump/pool setup on first call. Multicart reloads reuse
+     * the existing back_page and ITCM pool — itc_init() would reset
+     * the bump pointer and cause the pool to overlap back_page. */
+    if (itcm_setup_done)
+        return;
+    itcm_setup_done = 1;
 
     /* Reset ITCM bump — frees logo cache and other menu allocations.
      * On exit, odroid_system_switch_app(0) reboots the device so
      * logos are re-cached from SD on next boot. */
     itc_init();
 
-    /* Reserve 17KB for cart ROM snapshot (allocated later by p8_embedded_snapshot_rom).
-     * Then give the rest to the ITCM pool.
-     * After itc_init + back_page(16KB): 48KB free.
-     * After cart_rom reserve(17KB): 31KB free → pool. */
-    void *rom_reserve = itc_malloc(P8_ROM_SIZE);  /* 17KB reserved for cart ROM */
-    if (rom_reserve == (void*)0xFFFFFFFF) rom_reserve = NULL;
+    /* Allocate back_page in ITCM (must be AFTER itc_init to avoid overlap).
+     * ITCM starts at 0x00000000, so valid pointers CAN be 0.
+     * itc_calloc returns 0xFFFFFFFF on failure. */
+    if (p8_back_page_ptr() == (uint8_t*)0xFFFFFFFF) {
+        void* itc_ptr = itc_calloc(1, 128 * 128);
+        if (itc_ptr != (void*)0xFFFFFFFF) {
+            p8_set_back_page((uint8_t*)itc_ptr);
+            printf("P8: back_page in ITCM at 0x%08lX (16KB)\n", (unsigned long)(uintptr_t)itc_ptr);
+        } else {
+            uint8_t* bp = (uint8_t*)p8_pool_malloc(128 * 128);
+            if (bp) memset(bp, 0, 128 * 128);
+            p8_set_back_page(bp);
+            printf("P8: back_page in pool at 0x%08lX (16KB)\n", (unsigned long)(uintptr_t)bp);
+        }
+    }
 
-    /* Grab remaining ITCM for pool */
+    /* Give remaining ITCM to pool (after hot code + back_page). */
     size_t try_size = 32 * 1024;
     void *itcm_block = itc_malloc(try_size);
     if (itcm_block == (void*)0xFFFFFFFF) {
@@ -108,11 +148,6 @@ void p8_itcm_pool_setup(void) {
         p8_pool_init_itcm(itcm_block, try_size);
     } else {
         printf("P8: ITCM pool: no space available\n");
-    }
-
-    /* Pre-assign the reserved block for cart ROM snapshot */
-    if (rom_reserve) {
-        embedded_cart_rom = (uint8_t*)rom_reserve;
     }
 }
 
@@ -887,22 +922,16 @@ int sys_load_cart(const char* path, bool soft_load) {
 
 /* ============================================================
  * reload() support — on embedded, cart_rom is a pool allocation
- * (not BSS) to save 17KB that grows the pool. Snapshot taken after
- * cart loading when pool has spare capacity.
+ * in main pool (AXI SRAM). Only accessed by reload() which is
+ * rare, so doesn't need fast memory. Frees ITCM for hot code.
  * ============================================================ */
 /* embedded_cart_rom declared earlier (before p8_itcm_pool_setup) */
 
 /* Called after successful cart load to snapshot p8.ram[0..0x42FF].
- * Allocates from ITCM (fast, keeps main pool free). */
+ * Allocates from main pool (AXI SRAM) — reload() is rare. */
 void p8_embedded_snapshot_rom(void) {
     if (!embedded_cart_rom) {
-        void* ptr = itc_calloc(1, P8_ROM_SIZE);
-        if (ptr != (void*)0xffffffff) {
-            embedded_cart_rom = (uint8_t*)ptr;
-        } else {
-            /* ITCM full — fall back to pool */
-            embedded_cart_rom = (uint8_t*)p8_pool_malloc(P8_ROM_SIZE);
-        }
+        embedded_cart_rom = (uint8_t*)p8_pool_malloc(P8_ROM_SIZE);
     }
     if (embedded_cart_rom) {
         memcpy(embedded_cart_rom, p8.ram, P8_ROM_SIZE);
