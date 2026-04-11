@@ -53,7 +53,7 @@ int odroid_overlay_game_menu(odroid_dialog_choice_t *extra_options, void_callbac
 static retro_emulator_file_t *CHOSEN_FILE = NULL;
 #endif
 
-static uint16_t overlay_buffer[ODROID_SCREEN_WIDTH * 32 * 2] __attribute__((aligned(4)));
+/* overlay_buffer removed — all drawing goes directly to LCD framebuffer */
 static short font_size = 8;
 
 #define MAX_OPTIONS_COUNT 18
@@ -112,25 +112,22 @@ void odroid_overlay_draw_logo(uint16_t x_pos, uint16_t y_pos, int16_t logo_idx, 
 
 int odroid_overlay_draw_text_line(uint16_t x_pos, uint16_t y_pos, uint16_t width, const char *text, uint16_t color, uint16_t color_bg)
 {
-    int font_height = 8; //odroid_overlay_get_font_size();
-    int font_width = 8;  //odroid_overlay_get_font_width();
-    int x_offset = 0;
-    //float scale = 1; //(float)font_height / 8;
+    int font_height = 8;
+    int font_width = 8;
     int text_len = strlen(text);
+    uint16_t *fb = lcd_get_active_buffer();
 
     for (int i = 0; i < (width / font_width); i++)
     {
         const char *glyph = font8x8_basic[(i < text_len) ? text[i] : ' '];
+        int px = x_pos + i * font_width;
         for (int y = 0; y < font_height; y++)
         {
-            int offset = x_offset + (width * y);
+            int row = (y_pos + y) * ODROID_SCREEN_WIDTH + px;
             for (int x = 0; x < 8; x++)
-                overlay_buffer[offset + x] = (glyph[y] & (1 << x)) ? color : color_bg;
+                fb[row + x] = (glyph[y] & (1 << x)) ? color : color_bg;
         }
-        x_offset += font_width;
     }
-
-    odroid_display_write(x_pos, y_pos, width, font_height, overlay_buffer);
 
     return font_height;
 }
@@ -173,13 +170,25 @@ void odroid_overlay_draw_rect(int x, int y, int width, int height, int border, u
     if (width == 0 || height == 0 || border == 0)
         return;
 
-    int pixels = (width > height ? width : height) * border;
-    for (int i = 0; i < pixels; i++)
-        overlay_buffer[i] = color;
-    odroid_display_write(x, y, width, border, overlay_buffer);                   // T
-    odroid_display_write(x, y + height - border, width, border, overlay_buffer); // B
-    odroid_display_write(x, y, border, height, overlay_buffer);                  // L
-    odroid_display_write(x + width - border, y, border, height, overlay_buffer); // R
+    uint16_t *fb = lcd_get_active_buffer();
+
+    // Top and bottom edges
+    for (int by = 0; by < border; by++) {
+        uint16_t *top = &fb[(y + by) * ODROID_SCREEN_WIDTH + x];
+        uint16_t *bot = &fb[(y + height - border + by) * ODROID_SCREEN_WIDTH + x];
+        for (int bx = 0; bx < width; bx++) {
+            top[bx] = color;
+            bot[bx] = color;
+        }
+    }
+    // Left and right edges
+    for (int by = 0; by < height; by++) {
+        uint16_t *row = &fb[(y + by) * ODROID_SCREEN_WIDTH];
+        for (int bx = 0; bx < border; bx++) {
+            row[x + bx] = color;
+            row[x + width - border + bx] = color;
+        }
+    }
 }
 
 void odroid_overlay_draw_fill_rect(int x, int y, int width, int height, uint16_t color)
@@ -187,17 +196,12 @@ void odroid_overlay_draw_fill_rect(int x, int y, int width, int height, uint16_t
     if (width == 0 || height == 0)
         return;
 
-    for (int i = 0; i < width * 16; i++)
-        overlay_buffer[i] = color;
+    uint16_t *fb = lcd_get_active_buffer();
 
-    int y_pos = y;
-    int y_end = y + height;
-
-    while (y_pos < y_end)
-    {
-        int thickness = (y_end - y_pos >= 16) ? 16 : (y_end - y_pos);
-        odroid_display_write(x, y_pos, width, thickness, overlay_buffer);
-        y_pos += 16;
+    for (int row = y; row < y + height; row++) {
+        uint16_t *dst = &fb[row * ODROID_SCREEN_WIDTH + x];
+        for (int col = 0; col < width; col++)
+            dst[col] = color;
     }
 }
 
