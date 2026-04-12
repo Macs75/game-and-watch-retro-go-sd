@@ -175,22 +175,6 @@ void p8_itcm_pool_setup(void) {
         }
     }
 
-    /* Give remaining ITCM to pool (after hot code + back_page). */
-    size_t try_size = 32 * 1024;
-    void *itcm_block = itc_malloc(try_size);
-    if (itcm_block == (void*)0xFFFFFFFF) {
-        try_size = 16 * 1024;
-        itcm_block = itc_malloc(try_size);
-    }
-    if (itcm_block == (void*)0xFFFFFFFF) {
-        try_size = 8 * 1024;
-        itcm_block = itc_malloc(try_size);
-    }
-    if (itcm_block != (void*)0xFFFFFFFF && itcm_block != NULL) {
-        p8_pool_init_itcm(itcm_block, try_size);
-    } else {
-        printf("P8: ITCM pool: no space available\n");
-    }
 }
 
 /* Constants */

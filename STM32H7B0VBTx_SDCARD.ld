@@ -139,6 +139,7 @@ SECTIONS
     build/pico8/lgc.o (.text .text.* .rodata .rodata.*)
     build/pico8/lapi.o (.text .text.* .rodata .rodata.*)
     build/pico8/ldo.o (.text .text.* .rodata .rodata.*)
+    build/pico8/p8_render.o (.text .text.* .rodata .rodata.*)
     . = ALIGN(4);
     __itcram_hot_code_end__ = .;
     /* Reserve 1KB for linker long-branch stubs (veneers).
@@ -696,7 +697,7 @@ INCLUDE build/fceumm_mappers.ld
     /* All remaining code + data (hot runtime).
        lvm.o+ltable.o .text/.rodata excluded — in ._itcram_hot for ITCM.
        Their .data stays here via the wildcard at the end. */
-    EXCLUDE_FILE(build/pico8/lvm.o build/pico8/ltable.o build/pico8/lgc.o build/pico8/lapi.o build/pico8/ldo.o) build/pico8/*.o (.text .text* .rodata .rodata*)
+    EXCLUDE_FILE(build/pico8/lvm.o build/pico8/ltable.o build/pico8/lgc.o build/pico8/lapi.o build/pico8/ldo.o build/pico8/p8_render.o) build/pico8/*.o (.text .text* .rodata .rodata*)
     build/pico8/*.o (.data .data*)
     . = ALIGN(4);
     _OVERLAY_PICO8_LOAD_END = .;
