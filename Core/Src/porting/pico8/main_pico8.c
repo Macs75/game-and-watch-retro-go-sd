@@ -378,8 +378,8 @@ uint32_t sys_get_input_state(void) {
     if (btns & B_Right) p8_btns |= (1 << 1);
     if (btns & B_Up)    p8_btns |= (1 << 2);
     if (btns & B_Down)  p8_btns |= (1 << 3);
-    if (btns & B_A)     p8_btns |= (1 << 4);  /* O button */
-    if (btns & B_B)     p8_btns |= (1 << 5);  /* X button */
+    if (btns & B_A)     p8_btns |= (1 << 5);  /* X button (swapped) */
+    if (btns & B_B)     p8_btns |= (1 << 4);  /* O button (swapped) */
     if (btns & B_PAUSE) p8_btns |= (1 << 16); /* Pause */
     return p8_btns;
 }
@@ -505,8 +505,8 @@ void app_main_pico8(uint8_t load_state, uint8_t start_paused, int8_t save_slot)
         if (joystick.values[ODROID_INPUT_RIGHT]) p8_btns |= (1 << 1);
         if (joystick.values[ODROID_INPUT_UP])    p8_btns |= (1 << 2);
         if (joystick.values[ODROID_INPUT_DOWN])  p8_btns |= (1 << 3);
-        if (joystick.values[ODROID_INPUT_A])     p8_btns |= (1 << 4);  /* O button */
-        if (joystick.values[ODROID_INPUT_B])     p8_btns |= (1 << 5);  /* X button */
+        if (joystick.values[ODROID_INPUT_A])     p8_btns |= (1 << 5);  /* X button (swapped) */
+        if (joystick.values[ODROID_INPUT_B])     p8_btns |= (1 << 4);  /* O button (swapped) */
 
         /* Mouse emulation: when the cart enables devkit mode (poke(0x5F2D,1))
          * and the pause menu is NOT active, the D-pad drives the cursor with
