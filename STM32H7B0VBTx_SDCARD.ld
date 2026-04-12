@@ -56,7 +56,7 @@ ENTRY(Reset_Handler)
 _estack = _stack_top;    /* end of RAM */
 
 /* Generate a link error if heap and stack don't fit into RAM */
-_Heap_Size = 32 * 1024;     /* required amount of heap */
+_Heap_Size = 22 * 1024;     /* reduced from 32KB to fit p8.ram in DTCM */
 
 _Stack_Redzone_Size = 256;  /* size of stack overflow protection */
 _Min_Stack_Size = 24 * 1024; /* required amount of stack */
@@ -894,6 +894,15 @@ INCLUDE build/fceumm_mappers.ld
     . = ALIGN(4);
     _ebss = .;         /* define a global symbol at bss end */
     __bss_end__ = _ebss;
+  } >DTCMRAM
+
+  /* PICO-8 RAM (64KB) in DTCM for zero-wait-state access. */
+  ._dtcm_p8ram (NOLOAD) :
+  {
+    . = ALIGN(4);
+    __dtcm_p8ram_start__ = .;
+    . = . + 0x10000;  /* P8_RAM_SIZE = 64KB */
+    __dtcm_p8ram_end__ = .;
   } >DTCMRAM
 
   ._user_heap :
