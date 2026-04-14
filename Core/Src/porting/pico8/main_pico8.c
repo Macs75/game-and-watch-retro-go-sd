@@ -78,17 +78,17 @@ void p8_srd_pool_setup(void) {
     }
 }
 
-/* Initialize ITCM pool from remaining ITCM after back_page.
- * ITCM is zero-wait-state RAM (480MHz) — fastest on the chip.
- * We reset the ITCM bump allocator first to reclaim space used by
- * retro-go's logo cache (not needed during gameplay).
+/* Initialize ITCM (zero-wait-state RAM, 480MHz):
+ * 1. Load hot code from /cores/pico8_itcm.bin (lvm, ltable, lgc, lapi, ldo, p8_render)
+ * 2. Patch sentinel addresses (0xBEEF...) to real QSPI XIP addresses
+ * 3. Allocate back_page (16KB) in remaining ITCM space
  * cart_rom is allocated from main pool (AXI SRAM) — only used by reload(). */
 static uint8_t* embedded_cart_rom = NULL;  /* allocated in main pool by p8_embedded_snapshot_rom */
 
 static int itcm_setup_done = 0;
 static size_t itcm_loaded_size = 0;  /* actual bytes loaded (includes linker stubs) */
 
-void p8_itcm_pool_setup(void) {
+void p8_itcm_init(void) {
 
     /* Load ITCM hot code from SD card.
      * Always reload — multicart switches re-enter this function.
@@ -137,32 +137,29 @@ void p8_itcm_pool_setup(void) {
         }
     }
 
-    /* Only do bump/pool setup on first call. Multicart reloads reuse
-     * the existing back_page and ITCM pool — itc_init() would reset
-     * the bump pointer and cause the pool to overlap back_page. */
+    /* Only do back_page allocation on first call. Multicart reloads reuse
+     * the existing back_page — itc_init() would reset the bump pointer
+     * and cause a fresh allocation to overlap back_page. */
     if (itcm_setup_done)
         return;
     itcm_setup_done = 1;
 
-    /* Reset ITCM bump to after loaded code (includes linker stubs).
-     * itc_init() resets to __itcram_end__ which may not include stubs,
-     * so we advance the bump past the actual loaded file size. */
-    {
+    /* Allocate back_page (16KB) in ITCM after the loaded hot code.
+     * - itc_init() resets the shared bump allocator to __itcram_end__,
+     *   reclaiming any space retro-go used (e.g. logo cache).
+     * - If loaded ITCM extends past __itcram_end__ (linker stubs in the
+     *   1KB padding), advance the bump to skip them.
+     * - Then itc_calloc places back_page at the resulting address.
+     * ITCM starts at 0x00000000, so valid pointers CAN be 0.
+     * itc_calloc returns 0xFFFFFFFF on failure → fall back to main pool. */
+    if (p8_back_page_ptr() == (uint8_t*)0xFFFFFFFF) {
         extern uint32_t __itcram_hot_start__;
-        uint32_t code_end = (uint32_t)&__itcram_hot_start__ + itcm_loaded_size;
-        /* itc_init sets bump to __itcram_end__. If loaded code is larger,
-         * allocate the difference to skip past the stubs. */
-        itc_init();
         extern uint32_t __itcram_end__;
+        uint32_t code_end = (uint32_t)&__itcram_hot_start__ + itcm_loaded_size;
+        itc_init();
         if (code_end > (uint32_t)&__itcram_end__) {
             itc_malloc(code_end - (uint32_t)&__itcram_end__);
         }
-    }
-
-    /* Allocate back_page in ITCM (must be AFTER itc_init to avoid overlap).
-     * ITCM starts at 0x00000000, so valid pointers CAN be 0.
-     * itc_calloc returns 0xFFFFFFFF on failure. */
-    if (p8_back_page_ptr() == (uint8_t*)0xFFFFFFFF) {
         void* itc_ptr = itc_calloc(1, 128 * 128);
         if (itc_ptr != (void*)0xFFFFFFFF) {
             p8_set_back_page((uint8_t*)itc_ptr);
@@ -273,24 +270,46 @@ void sys_draw_frame(const uint8_t* framebuffer, const uint32_t* palette) {
     pixel_t* lcd = (pixel_t*)lcd_get_active_buffer();
     const uint8_t* bp = p8_back_page_ptr();
 
-    /* Build RGB565 LUT for all 32 hardware palette entries */
-    uint16_t hw565[32];
-    for (int i = 0; i < 32; i++) {
-        uint32_t rgb = palette[i];
-        hw565[i] = ((rgb >> 8) & 0xF800) | ((rgb >> 5) & 0x07E0) | ((rgb >> 3) & 0x001F);
+    /* RGB565 LUT for the 32 hardware palette entries.
+     * PICO-8's hardware palette is fixed (16 standard + 16 secret colors),
+     * so we cache the conversion. Recompute only if the palette pointer
+     * changes (e.g. shell uses a different palette than carts). */
+    static uint16_t hw565[32];
+    static const uint32_t* hw565_src = NULL;
+    if (palette != hw565_src) {
+        for (int i = 0; i < 32; i++) {
+            uint32_t rgb = palette[i];
+            hw565[i] = ((rgb >> 8) & 0xF800) | ((rgb >> 5) & 0x07E0) | ((rgb >> 3) & 0x001F);
+        }
+        hw565_src = palette;
     }
 
-    /* Build primary and secondary screen palette → RGB565 LUTs */
-    uint16_t pal_primary[16], pal_secondary[16];
-    for (int i = 0; i < 16; i++) {
-        uint8_t sp = p8.ram[0x5F10 + i];
-        uint8_t m = sp & 0x8F;
-        pal_primary[i] = hw565[(m & 0x0F) + ((m & 0x80) ? 16 : 0)];
-
-        sp = p8.ram[0x5F60 + i];
-        m = sp & 0x8F;
-        pal_secondary[i] = hw565[(m & 0x0F) + ((m & 0x80) ? 16 : 0)];
+    /* Build primary and secondary screen palette → RGB565 LUTs.
+     * Cached: rebuild only when 0x5F10/0x5F60 RAM bytes change OR hw LUT changes.
+     * Carts typically set the screen palette at init/scene transitions, not
+     * per frame — so this is a no-op most frames. */
+    static uint16_t pal_primary[16], pal_secondary[16];
+    static uint8_t cached_primary[16], cached_secondary[16];
+    static const uint32_t* pal_cache_hw_src = NULL;
+    if (pal_cache_hw_src != hw565_src ||
+        memcmp(cached_primary, &p8.ram[0x5F10], 16) != 0) {
+        for (int i = 0; i < 16; i++) {
+            uint8_t sp = p8.ram[0x5F10 + i];
+            uint8_t m = sp & 0x8F;
+            pal_primary[i] = hw565[(m & 0x0F) + ((m & 0x80) ? 16 : 0)];
+            cached_primary[i] = sp;
+        }
     }
+    if (pal_cache_hw_src != hw565_src ||
+        memcmp(cached_secondary, &p8.ram[0x5F60], 16) != 0) {
+        for (int i = 0; i < 16; i++) {
+            uint8_t sp = p8.ram[0x5F60 + i];
+            uint8_t m = sp & 0x8F;
+            pal_secondary[i] = hw565[(m & 0x0F) + ((m & 0x80) ? 16 : 0)];
+            cached_secondary[i] = sp;
+        }
+    }
+    pal_cache_hw_src = hw565_src;
 
     bool use_scanline_toggle = (p8.ram[0x5F5F] & 0x10) != 0;
     uint8_t mode = p8.ram[0x5F2C] & ~0x40;
@@ -304,11 +323,17 @@ void sys_draw_frame(const uint8_t* framebuffer, const uint32_t* palette) {
         lut_init = true;
     }
 
-    /* Clear borders once */
-    for (int y = 0; y < LCD_HEIGHT; y++) {
-        pixel_t* row = lcd + y * LCD_WIDTH;
-        for (int x = 0; x < OFFSET_X; x++) row[x] = 0;
-        for (int x = OFFSET_X + SCALE_W; x < LCD_WIDTH; x++) row[x] = 0;
+    /* Clear once per LCD buffer with a single memset. The center 240×240 PICO-8
+     * area gets overwritten by the render loop below; the 40px borders stay 0.
+     * memset is much faster than the per-row border loop (AXI burst stores).
+     * Two LCD buffers, so this runs at most twice per pico8 session. */
+    {
+        static pixel_t* cleared_bufs[2] = {NULL, NULL};
+        if (lcd != cleared_bufs[0] && lcd != cleared_bufs[1]) {
+            memset(lcd, 0, LCD_WIDTH * LCD_HEIGHT * sizeof(pixel_t));
+            if (cleared_bufs[0] == NULL) cleared_bufs[0] = lcd;
+            else                         cleared_bufs[1] = lcd;
+        }
     }
 
     /* Main render loop */
@@ -322,17 +347,14 @@ void sys_draw_frame(const uint8_t* framebuffer, const uint32_t* palette) {
             }
         }
     } else {
-        /* Full path: screen modes + scanline palette toggle */
+        /* Full path: screen modes + scanline palette toggle.
+         * PICO-8 reference (Ghidra blit_pico8_back_page_to_pico8_screen):
+         * palette-per-scanline is resolved using the SOURCE row (pre-mode),
+         * then screen mode is applied in a separate in-place pass. So we
+         * index 0x5F70 by src_y, not p8_y — matches SDL2 backend. */
         for (int dy = 0; dy < SCALE_H; dy++) {
             int p8_y = lut_y[dy];
             pixel_t* dst_row = lcd + (OFFSET_Y + dy) * LCD_WIDTH + OFFSET_X;
-
-            const uint16_t* pal;
-            if (use_scanline_toggle && ((p8.ram[0x5F70 + (p8_y >> 3)] >> (p8_y & 7)) & 1)) {
-                pal = pal_secondary;
-            } else {
-                pal = pal_primary;
-            }
 
             for (int dx = 0; dx < SCALE_W; dx++) {
                 int p8_x = lut_x[dx];
@@ -358,8 +380,59 @@ void sys_draw_frame(const uint8_t* framebuffer, const uint32_t* palette) {
                     }
                 }
 
+                const uint16_t* pal;
+                if (use_scanline_toggle &&
+                    ((p8.ram[0x5F70 + (src_y >> 3)] >> (src_y & 7)) & 1)) {
+                    pal = pal_secondary;
+                } else {
+                    pal = pal_primary;
+                }
                 dst_row[dx] = pal[bp[src_y * 128 + src_x] & 0x0F];
             }
+        }
+    }
+}
+
+/* Render a 128x128 framebuffer of RAW hardware-palette indices (0..31)
+ * directly to the LCD, scaled to the 240x240 PICO-8 area. Bypasses the
+ * cart's screen palette and screen mode entirely. Used by the pause menu:
+ * p8_pause_menu_draw bakes the screen palette into back_page values 0..31
+ * (gray-bit becomes index +16), and the menu overlay is drawn with raw hw
+ * indices — so we MUST NOT mask & 0x0F here, otherwise the gray-bit info
+ * is lost and pixels render in the brighter non-gray version (which is
+ * exactly the "boosted colors" symptom on embedded). */
+void sys_draw_shell_frame(const uint8_t* framebuffer, int width, int height,
+                          const uint32_t* palette) {
+    (void)width; (void)height;  /* embedded is always 128x128 */
+    pixel_t* lcd = (pixel_t*)lcd_get_active_buffer();
+
+    /* RGB565 LUT for the 32 hardware palette entries */
+    uint16_t hw565[32];
+    for (int i = 0; i < 32; i++) {
+        uint32_t rgb = palette[i];
+        hw565[i] = ((rgb >> 8) & 0xF800) | ((rgb >> 5) & 0x07E0) | ((rgb >> 3) & 0x001F);
+    }
+
+    /* Reuse the same scale LUTs as sys_draw_frame (precomputed there) */
+    static uint8_t lut_x[SCALE_W], lut_y[SCALE_H];
+    static bool lut_init = false;
+    if (!lut_init) {
+        for (int i = 0; i < SCALE_W; i++) lut_x[i] = (uint8_t)(i * P8_WIDTH / SCALE_W);
+        for (int i = 0; i < SCALE_H; i++) lut_y[i] = (uint8_t)(i * P8_HEIGHT / SCALE_H);
+        lut_init = true;
+    }
+
+    /* Don't bother caching cleared_bufs here — sys_draw_frame already does
+     * it for the gameplay path; the menu only re-blits the same buffer on
+     * input changes, so the cost is negligible. The 40px borders stay 0
+     * from the prior gameplay clear. */
+
+    for (int dy = 0; dy < SCALE_H; dy++) {
+        const uint8_t* src_row = framebuffer + lut_y[dy] * 128;
+        pixel_t* dst_row = lcd + (OFFSET_Y + dy) * LCD_WIDTH + OFFSET_X;
+        for (int dx = 0; dx < SCALE_W; dx++) {
+            /* No mask: 0..31 indexes the full hw palette (16 standard + 16 gray) */
+            dst_row[dx] = hw565[src_row[lut_x[dx]] & 0x1F];
         }
     }
 }
@@ -430,7 +503,7 @@ static void resample_audio(const int16_t* src, int src_samples,
 static void p8_blit(void) {
     /* Clear audio during pause menu repaint (DMA keeps playing otherwise) */
     audio_clear_active_buffer();
-    sys_draw_frame(p8_get_display_buffer(), p8_get_palette());
+    p8_present_display();
     common_ingame_overlay();
 }
 
@@ -657,19 +730,23 @@ void app_main_pico8(uint8_t load_state, uint8_t start_paused, int8_t save_slot)
             p8_pause_menu_update(newly);
             if (p8_pause_menu_is_active()) {
                 p8_pause_menu_draw();
-                /* Reset screen palette to identity so menu colors (7=white
-                 * etc.) are not remapped by the cart's custom palette.
-                 * sys_draw_frame maps back_page through 0x5F10. */
-                uint8_t saved_pal[16];
-                memcpy(saved_pal, &p8.ram[0x5F10], 16);
-                for (int i = 0; i < 16; i++) p8.ram[0x5F10 + i] = i;
-                /* Blit to BOTH LCD buffers so menu is visible regardless
-                 * of which buffer the LCD is currently displaying */
-                p8_blit();
+                /* Use sys_draw_shell_frame: back_page contains raw hw palette
+                 * indices (0..31) — game pixels pre-mapped through 0x5F10 by
+                 * p8_pause_menu_draw, menu colors as direct hw indices. The
+                 * shell-frame path bypasses screen palette + screen mode and
+                 * preserves the gray-bit (index +16). DON'T use p8_blit /
+                 * sys_draw_frame here — its inner-loop & 0x0F mask would drop
+                 * the gray-bit and "boost" any gray-marked colors back to
+                 * their bright versions.
+                 * Blit to BOTH LCD buffers so the menu is visible regardless
+                 * of which buffer the LCD is currently displaying. */
+                audio_clear_active_buffer();
+                sys_draw_shell_frame(p8_get_display_buffer(), 128, 128, p8.hardware_palette);
+                common_ingame_overlay();
                 lcd_swap();
-                p8_blit();
-                /* Restore cart's screen palette */
-                memcpy(&p8.ram[0x5F10], saved_pal, 16);
+                audio_clear_active_buffer();
+                sys_draw_shell_frame(p8_get_display_buffer(), 128, 128, p8.hardware_palette);
+                common_ingame_overlay();
             } else {
                 menu_suppress = true;
                 printf("P8: pause menu closed\n");
@@ -833,9 +910,9 @@ void app_main_pico8(uint8_t load_state, uint8_t start_paused, int8_t save_slot)
             }
         }
 
-        /* Display — always present (re-displays last frame for 30fps skip) */
+        /* Display — host-driven tick (re-displays last frame for 30fps skip) */
         uint32_t t3 = HAL_GetTick();
-        sys_draw_frame(p8_get_display_buffer(), p8_get_palette());
+        p8_display_tick();
         common_ingame_overlay();
         lcd_swap();
         /* Vsync disabled — testing audio stutter */
@@ -951,7 +1028,7 @@ int sys_load_cart(const char* path, bool soft_load) {
  * in main pool (AXI SRAM). Only accessed by reload() which is
  * rare, so doesn't need fast memory. Frees ITCM for hot code.
  * ============================================================ */
-/* embedded_cart_rom declared earlier (before p8_itcm_pool_setup) */
+/* embedded_cart_rom declared earlier (before p8_itcm_init) */
 
 /* Called after successful cart load to snapshot p8.ram[0..0x42FF].
  * Allocates from main pool (AXI SRAM) — reload() is rare. */

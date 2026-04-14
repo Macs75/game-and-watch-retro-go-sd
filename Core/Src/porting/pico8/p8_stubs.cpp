@@ -35,7 +35,7 @@ bool sys_text_input_available(void) { return false; }
 int sys_text_input_pop(void) { return 0; }
 void sys_create_shell_window(void) {}
 void sys_destroy_shell_window(void) {}
-void sys_draw_shell_frame(const uint8_t*, int, int, const uint32_t*) {}
+/* sys_draw_shell_frame is implemented in main_pico8.c (used by pause menu) */
 void sys_set_shell_window_size(int, int) {}
 void sys_start_audio_dump(const char*) {}
 void sys_stop_audio_dump(void) {}
