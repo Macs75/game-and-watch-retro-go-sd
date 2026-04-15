@@ -325,19 +325,200 @@ static int16_t p8_audio_buf[P8_AUDIO_SAMPLES];
 bool sys_init(void) { return true; }
 void sys_shutdown(void) {}
 
+/* ============================================================
+ * sys_draw_frame renderers — one per 0x5F5F mode.
+ *
+ * Design: each renderer handles exactly one palette-resolve effect and
+ * reads source coords through scale_src_x_lut / scale_src_y_lut, which
+ * the caller rebuilds whenever the screen mode (0x5F2C) changes. That
+ * keeps each loop body focused on a single concern (mirrors PICO-8's
+ * pass-1 dispatch in blit_pico8_back_page_to_pico8_screen) while still
+ * writing straight to the LCD in one pass.
+ *
+ * All five functions share the same outer-loop shape:
+ *   for dy in 0..sh:  src_y = scale_src_y_lut[dy]
+ *                     dst_row = lcd + (oy+dy)*LCD_WIDTH + ox
+ *   for dx in 0..sw:  src_x = scale_src_x_lut[dx]
+ *                     dst_row[dx] = <effect-specific pixel resolve>
+ * ============================================================ */
+
+/* No 0x5F5F effect — straight primary palette. Handles mode=0 fast path
+ * and the non-rotation mode-transform paths (stretch/mirror/flip). */
+static inline void render_primary(const uint8_t *bp, pixel_t *lcd,
+    int sw, int sh, int ox, int oy, const uint16_t *pal_pri)
+{
+    for (int dy = 0; dy < sh; dy++) {
+        const uint8_t *src_row = bp + scale_src_y_lut[dy] * 128;
+        pixel_t *dst_row = lcd + (oy + dy) * LCD_WIDTH + ox;
+        for (int dx = 0; dx < sw; dx++) {
+            dst_row[dx] = pal_pri[src_row[scale_src_x_lut[dx]] & 0x0F];
+        }
+    }
+}
+
+/* 0x5F5F == 0x10 : scanline palette toggle. Per source row, one bit of
+ * 0x5F70 picks primary vs secondary palette for the whole row. */
+static inline void render_palette_toggle(const uint8_t *bp, pixel_t *lcd,
+    int sw, int sh, int ox, int oy,
+    const uint16_t *pal_pri, const uint16_t *pal_sec)
+{
+    for (int dy = 0; dy < sh; dy++) {
+        int src_y = scale_src_y_lut[dy];
+        const uint16_t *pal = ((p8.ram[0x5F70 + (src_y >> 3)] >> (src_y & 7)) & 1)
+                              ? pal_sec : pal_pri;
+        const uint8_t *src_row = bp + src_y * 128;
+        pixel_t *dst_row = lcd + (oy + dy) * LCD_WIDTH + ox;
+        for (int dx = 0; dx < sw; dx++) {
+            dst_row[dx] = pal[src_row[scale_src_x_lut[dx]] & 0x0F];
+        }
+    }
+}
+
+/* 0x5F5F == 0x20 + mode == 1 : 5th-bitplane (stretched half). src_x is
+ * 0..63 (mode-1 gives p8_x/2); the byte at src_x+64 selects primary (0)
+ * vs secondary (non-zero) palette per pixel. */
+static inline void render_fifth_bitplane(const uint8_t *bp, pixel_t *lcd,
+    int sw, int sh, int ox, int oy,
+    const uint16_t *pal_pri, const uint16_t *pal_sec)
+{
+    for (int dy = 0; dy < sh; dy++) {
+        const uint8_t *src_row = bp + scale_src_y_lut[dy] * 128;
+        pixel_t *dst_row = lcd + (oy + dy) * LCD_WIDTH + ox;
+        for (int dx = 0; dx < sw; dx++) {
+            int src_x = scale_src_x_lut[dx];
+            uint8_t c    = src_row[src_x] & 0x0F;
+            uint8_t bit5 = src_row[src_x + 64];
+            dst_row[dx] = bit5 ? pal_sec[c] : pal_pri[c];
+        }
+    }
+}
+
+/* 0x5F5F in 0x30..0x3F : gradient / color-replace. Only the target color
+ * gets swapped; replacement is secondary_palette[byte_idx (+1 if the
+ * scanline bit in 0x5F70 is set)]. */
+static inline void render_gradient(const uint8_t *bp, pixel_t *lcd,
+    int sw, int sh, int ox, int oy,
+    const uint16_t *pal_pri, const uint16_t *pal_sec, uint8_t target)
+{
+    for (int dy = 0; dy < sh; dy++) {
+        int src_y = scale_src_y_lut[dy];
+        int byte_idx = src_y >> 3;
+        int sec_idx  = byte_idx;
+        if ((p8.ram[0x5F70 + byte_idx] >> (src_y & 7)) & 1)
+            sec_idx = (byte_idx + 1) & 0xF;
+        uint16_t grad_hw = pal_sec[sec_idx];
+        const uint8_t *src_row = bp + src_y * 128;
+        pixel_t *dst_row = lcd + (oy + dy) * LCD_WIDTH + ox;
+        for (int dx = 0; dx < sw; dx++) {
+            uint8_t c = src_row[scale_src_x_lut[dx]] & 0x0F;
+            dst_row[dx] = (c == target) ? grad_hw : pal_pri[c];
+        }
+    }
+}
+
+/* Rotation modes 5 and 7 (90° CCW/CW) swap the axes: src_x depends on
+ * output dy, src_y on output dx. Palette/gradient effects stay inline
+ * because src_y varies per pixel. This is a very rare combination; the
+ * inline branches are cheap given how infrequently it runs. */
+static inline void render_rotation(const uint8_t *bp, pixel_t *lcd,
+    int sw, int sh, int ox, int oy,
+    const uint16_t *pal_pri, const uint16_t *pal_sec,
+    bool palette_toggle, bool gradient_mode, uint8_t gradient_target)
+{
+    for (int dy = 0; dy < sh; dy++) {
+        int src_x = scale_src_x_lut[dy];
+        pixel_t *dst_row = lcd + (oy + dy) * LCD_WIDTH + ox;
+        for (int dx = 0; dx < sw; dx++) {
+            int src_y = scale_src_y_lut[dx];
+            uint8_t c = bp[src_y * 128 + src_x] & 0x0F;
+            const uint16_t *pal = pal_pri;
+            if (palette_toggle &&
+                ((p8.ram[0x5F70 + (src_y >> 3)] >> (src_y & 7)) & 1)) {
+                pal = pal_sec;
+            }
+            if (gradient_mode && c == gradient_target) {
+                int byte_idx = src_y >> 3;
+                int sec_idx = byte_idx;
+                if ((p8.ram[0x5F70 + byte_idx] >> (src_y & 7)) & 1)
+                    sec_idx = (byte_idx + 1) & 0xF;
+                dst_row[dx] = pal_sec[sec_idx];
+            } else {
+                dst_row[dx] = pal[c];
+            }
+        }
+    }
+}
+
+/* Rebuild scale_src_x/y_lut to combine current scaling LUT (128→sw/sh) with
+ * the screen-mode (0x5F2C) coordinate transform. Called only when mode
+ * changes — renderers always read through these LUTs afterwards.
+ *  - mode == 0                     : identity (src = p8 coord)
+ *  - rotation (0x85, 0x87)          : axes swap (x_lut indexed by dy, etc.)
+ *  - everything else (stretch/mirror/flip): src = f(p8) per-axis */
+static void rebuild_src_luts(uint8_t mode, bool rotation, int sw, int sh)
+{
+    if (mode == 0) {
+        memcpy(scale_src_x_lut, scale_lut_x, sw);
+        memcpy(scale_src_y_lut, scale_lut_y, sh);
+        return;
+    }
+    if (rotation) {
+        /* Mode 5: src_x = p8_y, src_y = 127 - p8_x  (90° CCW)
+         * Mode 7: src_x = 127 - p8_y, src_y = p8_x  (90° CW)  */
+        bool m5 = (mode & 0x07) == 5;
+        for (int dy = 0; dy < sh; dy++) {
+            int p8_y = scale_lut_y[dy];
+            scale_src_x_lut[dy] = m5 ? p8_y : (127 - p8_y);
+        }
+        for (int dx = 0; dx < sw; dx++) {
+            int p8_x = scale_lut_x[dx];
+            scale_src_y_lut[dx] = m5 ? (127 - p8_x) : p8_x;
+        }
+        return;
+    }
+    /* Stretch / mirror / flip family */
+    bool flip_y, stretch_y, mirror_y;
+    bool flip_x, stretch_x, mirror_x;
+    if (mode & 0x80) {
+        flip_y = (mode & 7) == 2 || (mode & 7) == 3 || (mode & 7) == 6;
+        flip_x = (mode & 7) == 1 || (mode & 7) == 3 || (mode & 7) == 6;
+        stretch_y = mirror_y = stretch_x = mirror_x = false;
+    } else {
+        flip_y = flip_x = false;
+        stretch_y = (mode & 2) && !(mode & 4);
+        mirror_y  = (mode & 2) &&  (mode & 4);
+        stretch_x = (mode & 1) && !(mode & 4);
+        mirror_x  = (mode & 1) &&  (mode & 4);
+    }
+    for (int dy = 0; dy < sh; dy++) {
+        int p8_y = scale_lut_y[dy];
+        int src_y;
+        if      (flip_y)    src_y = 127 - p8_y;
+        else if (stretch_y) src_y = p8_y / 2;
+        else if (mirror_y)  src_y = (p8_y < 64) ? p8_y : (127 - p8_y);
+        else                src_y = p8_y;
+        scale_src_y_lut[dy] = src_y;
+    }
+    for (int dx = 0; dx < sw; dx++) {
+        int p8_x = scale_lut_x[dx];
+        int src_x;
+        if      (flip_x)    src_x = 127 - p8_x;
+        else if (stretch_x) src_x = p8_x / 2;
+        else if (mirror_x)  src_x = (p8_x < 64) ? p8_x : (127 - p8_x);
+        else                src_x = p8_x;
+        scale_src_x_lut[dx] = src_x;
+    }
+}
+
 void sys_draw_frame(const uint8_t* framebuffer, const uint32_t* palette) {
-    /*
-     * Single-pass render: back_page → screen mode → screen palette → RGB565 → scaled LCD.
-     * Handles all PICO-8 display features: screen modes (0x5F2C), scanline palette
-     * toggle (0x5F5F/0x5F70), secondary palette (0x5F60). No intermediate display_buf.
-     */
+    /* Single-pass render: back_page → [screen mode + screen palette +
+     * 0x5F5F effect] → RGB565 → scaled LCD. Per-mode inner loops live in
+     * the render_* helpers above; this function is just a dispatcher. */
+    (void)framebuffer;  /* always uses back_page on embedded */
     pixel_t* lcd = (pixel_t*)lcd_get_active_buffer();
     const uint8_t* bp = p8_back_page_ptr();
 
-    /* RGB565 LUT for the 32 hardware palette entries.
-     * PICO-8's hardware palette is fixed (16 standard + 16 secret colors),
-     * so we cache the conversion. Recompute only if the palette pointer
-     * changes (e.g. shell uses a different palette than carts). */
+    /* hw palette 32-entry RGB888→RGB565 cache, rebuilt on palette ptr change. */
     static uint16_t hw565[32];
     static const uint32_t* hw565_src = NULL;
     if (palette != hw565_src) {
@@ -348,10 +529,9 @@ void sys_draw_frame(const uint8_t* framebuffer, const uint32_t* palette) {
         hw565_src = palette;
     }
 
-    /* Build primary and secondary screen palette → RGB565 LUTs.
-     * Cached: rebuild only when 0x5F10/0x5F60 RAM bytes change OR hw LUT changes.
-     * Carts typically set the screen palette at init/scene transitions, not
-     * per frame — so this is a no-op most frames. */
+    /* Screen-palette LUTs: primary (0x5F10) and secondary (0x5F60), each
+     * 16 entries of pre-resolved RGB565. Rebuilt only when RAM bytes change
+     * or the hw cache changes — no-op most frames. */
     static uint16_t pal_primary[16], pal_secondary[16];
     static uint8_t cached_primary[16], cached_secondary[16];
     static const uint32_t* pal_cache_hw_src = NULL;
@@ -378,142 +558,49 @@ void sys_draw_frame(const uint8_t* framebuffer, const uint32_t* palette) {
     /* Pick up any runtime scaling-mode change from retro-go's pause menu. */
     pico8_scaling_sync();
 
-    bool use_scanline_toggle = (p8.ram[0x5F5F] & 0x10) != 0;
-    uint8_t mode = p8.ram[0x5F2C] & ~0x40;
+    /* Dispatch flags — 0x5F5F modes (Ghidra-verified) are mutually
+     * exclusive; evaluation order below matches PICO-8's. */
+    const uint8_t reg5F5F = p8.ram[0x5F5F];
+    const uint8_t mode = p8.ram[0x5F2C] & ~0x40;
+    const bool palette_toggle = (reg5F5F == 0x10);
+    const bool fifth_bitplane = (reg5F5F == 0x20) && (mode == 1);
+    const bool gradient_mode  = ((reg5F5F & 0xF0) == 0x30);
+    const uint8_t gradient_target = reg5F5F & 0x0F;  /* valid if gradient */
+    const bool rotation = (mode & 0x80) && ((mode & 0x07) == 5 || (mode & 0x07) == 7);
     const int sw = cur_scale_w, sh = cur_scale_h;
     const int ox = cur_offset_x, oy = cur_offset_y;
 
-    /* Clear once per LCD buffer with a single memset. The center PICO-8 area
-     * gets overwritten by the render loop below; the borders stay 0. memset
-     * is faster than per-row border loops (AXI burst stores). Invalidated
-     * on scaling-mode change so the new border area gets cleared. */
+    /* Clear-once-per-buffer: the center PICO-8 area is always overwritten
+     * by the render loop; the borders stay zero. Invalidated by scaling
+     * changes so new border geometry gets cleared. */
     if (lcd != scale_cleared_bufs[0] && lcd != scale_cleared_bufs[1]) {
         memset(lcd, 0, LCD_WIDTH * LCD_HEIGHT * sizeof(pixel_t));
         if (scale_cleared_bufs[0] == NULL) scale_cleared_bufs[0] = lcd;
         else                               scale_cleared_bufs[1] = lcd;
     }
 
-    /* Main render loop */
-    if (mode == 0 && !use_scanline_toggle) {
-        /* Fast path: no screen mode, no scanline toggle (99% of carts) */
-        for (int dy = 0; dy < sh; dy++) {
-            const uint8_t* src_row = bp + scale_lut_y[dy] * 128;
-            pixel_t* dst_row = lcd + (oy + dy) * LCD_WIDTH + ox;
-            for (int dx = 0; dx < sw; dx++) {
-                dst_row[dx] = pal_primary[src_row[scale_lut_x[dx]] & 0x0F];
-            }
-        }
+    /* Rebuild src_x/y LUTs only when the screen mode changes. Renderers
+     * always read through these; for mode == 0 they degenerate to the
+     * plain scaling LUTs (identity transform). */
+    if (mode != scale_cached_mode) {
+        scale_cached_mode = mode;
+        rebuild_src_luts(mode, rotation, sw, sh);
+    }
+
+    /* Dispatch — hot path (mode=0 no-effect) is the first miss, then the
+     * three 0x5F5F modes in the order PICO-8 checks them. */
+    if (rotation) {
+        render_rotation(bp, lcd, sw, sh, ox, oy,
+                        pal_primary, pal_secondary,
+                        palette_toggle, gradient_mode, gradient_target);
+    } else if (fifth_bitplane) {
+        render_fifth_bitplane(bp, lcd, sw, sh, ox, oy, pal_primary, pal_secondary);
+    } else if (palette_toggle) {
+        render_palette_toggle(bp, lcd, sw, sh, ox, oy, pal_primary, pal_secondary);
+    } else if (gradient_mode) {
+        render_gradient(bp, lcd, sw, sh, ox, oy, pal_primary, pal_secondary, gradient_target);
     } else {
-        /* Full path: screen modes + scanline palette toggle.
-         * PICO-8 reference (Ghidra blit_pico8_back_page_to_pico8_screen):
-         * palette-per-scanline is resolved using the SOURCE row (pre-mode),
-         * then screen mode is applied in a separate in-place pass. So we
-         * index 0x5F70 by src_y, not p8_y — matches SDL2 backend.
-         *
-         * Mode is frame-constant, so we hoist the per-axis transform into
-         * LUTs and rebuild only when mode changes. Inner loops are then as
-         * tight as the fast path (single table lookup per pixel).
-         *
-         * Non-rotation (modes 0-3, 6 + stretch/mirror family):
-         *   src_x = f(p8_x) only, src_y = f(p8_y) only
-         *   → palette pick hoisted to outer loop (src_y row-constant)
-         *
-         * Rotation (modes 5, 7 — 90° rotations): axes swap:
-         *   src_x = f(p8_y), src_y = f(p8_x)
-         *   → palette pick stays inner (src_y varies per pixel) */
-        bool rotation = (mode & 0x80) && ((mode & 0x07) == 5 || (mode & 0x07) == 7);
-
-        if (mode != scale_cached_mode) {
-            scale_cached_mode = mode;
-            if (rotation) {
-                /* Mode 5: src_x = p8_y, src_y = 127 - p8_x (90° CCW)
-                 * Mode 7: src_x = 127 - p8_y, src_y = p8_x (90° CW) */
-                bool m5 = (mode & 0x07) == 5;
-                for (int dy = 0; dy < sh; dy++) {
-                    int p8_y = scale_lut_y[dy];
-                    scale_src_x_lut[dy] = m5 ? p8_y : (127 - p8_y);
-                }
-                for (int dx = 0; dx < sw; dx++) {
-                    int p8_x = scale_lut_x[dx];
-                    scale_src_y_lut[dx] = m5 ? (127 - p8_x) : p8_x;
-                }
-            } else {
-                /* Y axis */
-                bool flip_y, stretch_y, mirror_y;
-                if (mode & 0x80) {
-                    flip_y = (mode & 7) == 2 || (mode & 7) == 3 || (mode & 7) == 6;
-                    stretch_y = mirror_y = false;
-                } else {
-                    flip_y = false;
-                    stretch_y = (mode & 2) && !(mode & 4);
-                    mirror_y  = (mode & 2) &&  (mode & 4);
-                }
-                for (int dy = 0; dy < sh; dy++) {
-                    int p8_y = scale_lut_y[dy];
-                    int src_y;
-                    if (flip_y)         src_y = 127 - p8_y;
-                    else if (stretch_y) src_y = p8_y / 2;
-                    else if (mirror_y)  src_y = (p8_y < 64) ? p8_y : (127 - p8_y);
-                    else                src_y = p8_y;
-                    scale_src_y_lut[dy] = src_y;
-                }
-                /* X axis */
-                bool flip_x, stretch_x, mirror_x;
-                if (mode & 0x80) {
-                    flip_x = (mode & 7) == 1 || (mode & 7) == 3 || (mode & 7) == 6;
-                    stretch_x = mirror_x = false;
-                } else {
-                    flip_x = false;
-                    stretch_x = (mode & 1) && !(mode & 4);
-                    mirror_x  = (mode & 1) &&  (mode & 4);
-                }
-                for (int dx = 0; dx < sw; dx++) {
-                    int p8_x = scale_lut_x[dx];
-                    int src_x;
-                    if (flip_x)         src_x = 127 - p8_x;
-                    else if (stretch_x) src_x = p8_x / 2;
-                    else if (mirror_x)  src_x = (p8_x < 64) ? p8_x : (127 - p8_x);
-                    else                src_x = p8_x;
-                    scale_src_x_lut[dx] = src_x;
-                }
-            }
-        }
-
-        if (!rotation) {
-            /* Fast hoisted form: inner loop identical cost to fast path */
-            for (int dy = 0; dy < sh; dy++) {
-                int src_y = scale_src_y_lut[dy];
-                const uint8_t* src_row = bp + src_y * 128;
-                const uint16_t* pal;
-                if (use_scanline_toggle &&
-                    ((p8.ram[0x5F70 + (src_y >> 3)] >> (src_y & 7)) & 1)) {
-                    pal = pal_secondary;
-                } else {
-                    pal = pal_primary;
-                }
-                pixel_t* dst_row = lcd + (oy + dy) * LCD_WIDTH + ox;
-                for (int dx = 0; dx < sw; dx++) {
-                    dst_row[dx] = pal[src_row[scale_src_x_lut[dx]] & 0x0F];
-                }
-            }
-        } else {
-            /* Rotation: src_y varies per pixel → palette pick stays inner */
-            for (int dy = 0; dy < sh; dy++) {
-                int src_x = scale_src_x_lut[dy];
-                pixel_t* dst_row = lcd + (oy + dy) * LCD_WIDTH + ox;
-                for (int dx = 0; dx < sw; dx++) {
-                    int src_y = scale_src_y_lut[dx];
-                    const uint16_t* pal;
-                    if (use_scanline_toggle &&
-                        ((p8.ram[0x5F70 + (src_y >> 3)] >> (src_y & 7)) & 1)) {
-                        pal = pal_secondary;
-                    } else {
-                        pal = pal_primary;
-                    }
-                    dst_row[dx] = pal[bp[src_y * 128 + src_x] & 0x0F];
-                }
-            }
-        }
+        render_primary(bp, lcd, sw, sh, ox, oy, pal_primary);
     }
 }
 
