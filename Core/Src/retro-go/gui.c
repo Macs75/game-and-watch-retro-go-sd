@@ -707,8 +707,24 @@ static void draw_centered_local_text_line(uint16_t y_pos,
 
 static const char *gui_no_cover_text_for_item(const listbox_item_t *item)
 {
-    if (item && item->text && item->text[0] != '\0')
-        return item->text;
+    if (!item || !item->arg)
+        return curr_lang->s_No_Cover;
+
+    if (rg_rom_list_arg_is_parent(item->arg))
+    {
+        if (item->text && item->text[0] != '\0')
+            return item->text;
+        return curr_lang->s_No_Cover;
+    }
+
+    const retro_emulator_file_t *file = (const retro_emulator_file_t *)item->arg;
+    if (file->ext == NULL)
+    {
+        if (item->text && item->text[0] != '\0')
+            return item->text;
+        return curr_lang->s_No_Cover;
+    }
+
     return curr_lang->s_No_Cover;
 }
 
