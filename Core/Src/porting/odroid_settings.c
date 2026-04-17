@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <stddef.h>
 #include <string.h>
 
 #include "odroid_system.h"
@@ -72,6 +73,7 @@ typedef struct persistent_config {
     uint16_t main_menu_timeout_s;
     uint16_t main_menu_selected_tab;
     uint16_t main_menu_cursor;
+    char main_menu_browse_subpath[96];
 
     bool debug_clock_always_on;
 
@@ -82,7 +84,7 @@ typedef struct persistent_config {
 
 static const persistent_config_t persistent_config_default = {
     .magic = CONFIG_MAGIC,
-    .version = 6,
+    .version = 7,
 
     .backlight = ODROID_BACKLIGHT_LEVEL6,
     .start_action = ODROID_START_ACTION_RESUME,
@@ -120,6 +122,7 @@ static const persistent_config_t persistent_config_default = {
     .main_menu_timeout_s = 60 * 10, // Turn off after 10 minutes of idle time in the main menu
     .main_menu_selected_tab = 0,
     .main_menu_cursor = 0,
+    .main_menu_browse_subpath = {0},
     .debug_clock_always_on = false,
     .app = {
         {0}, // Launcher
@@ -565,6 +568,28 @@ uint16_t odroid_settings_MainMenuCursor_get()
 void odroid_settings_MainMenuCursor_set(uint16_t value)
 {
     persistent_config_ram.main_menu_cursor = value;
+}
+
+void odroid_settings_MainMenuBrowseSubpath_set(const char *subpath)
+{
+    if (subpath && subpath[0]) {
+        strncpy(persistent_config_ram.main_menu_browse_subpath,
+                subpath,
+                sizeof(persistent_config_ram.main_menu_browse_subpath) - 1);
+        persistent_config_ram.main_menu_browse_subpath[sizeof(persistent_config_ram.main_menu_browse_subpath) - 1] = '\0';
+    } else {
+        persistent_config_ram.main_menu_browse_subpath[0] = '\0';
+    }
+}
+
+bool odroid_settings_MainMenuBrowseSubpath_get(char *buf, size_t buf_size)
+{
+    if (buf == NULL || buf_size == 0)
+        return false;
+
+    strncpy(buf, persistent_config_ram.main_menu_browse_subpath, buf_size - 1);
+    buf[buf_size - 1] = '\0';
+    return buf[0] != '\0';
 }
 
 
