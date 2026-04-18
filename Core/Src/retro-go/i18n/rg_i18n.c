@@ -432,7 +432,7 @@ const char *cp1251_fonts[9] = {
 #include "rg_i18n_ru_ru.c"
 #endif
 
-static uint16_t overlay_buffer[ODROID_SCREEN_WIDTH * 12 * 2] __attribute__((aligned(4)));
+/* overlay_buffer removed — all drawing goes directly to LCD framebuffer */
 
 const lang_t *gui_lang[] = {
     &lang_en_us,
@@ -578,13 +578,7 @@ int i18n_get_text_lines(const char *text, const int fix_width)
     return lines;
 }
 
-void odroid_overlay_read_screen_rect(uint16_t x_pos, uint16_t y_pos, uint16_t width, uint16_t height)
-{
-    uint16_t *dst_img = (uint16_t *)(lcd_get_active_buffer());
-    for (int x = 0; x < width; x++)
-        for (int y = 0; y < height; y++)
-            overlay_buffer[x + y * width] = dst_img[(y + y_pos) * ODROID_SCREEN_WIDTH + x_pos + x];
-}
+/* odroid_overlay_read_screen_rect removed — direct framebuffer access instead */
 
 #if 0
 int i18n_draw_text_line(uint16_t x_pos, uint16_t y_pos, uint16_t width, const char *text, uint16_t color, uint16_t color_bg, char transparent, const lang_t* lang)
@@ -744,118 +738,45 @@ int i18n_draw_text_line(uint16_t x_pos, uint16_t y_pos, uint16_t width, const ch
         return 0;
     int font_height = 12;
     int x_offset = 0;
-//    char *font = gui_fonts[curr_font];
+    uint16_t *fb = lcd_get_active_buffer();
 
-    if (transparent)
-        odroid_overlay_read_screen_rect(x_pos, y_pos, width, font_height);
-    else
-    {
-        for (int x = 0; x < width; x++)
-            for (int y = 0; y < font_height; y++)
-                overlay_buffer[x + y * width] = color_bg;
-    }
-#if 0 // TODO: Implement text clipping
-    int w = i18n_get_text_width(text, lang);
-    sprintf(realtxt, "%.*s", 160, text);
-    // if text is too long, cut it and paint end point
-    if (w > width)
-    {
-        w = 0;
-        int i = 0;
-        while (w < width)
-        {
-            w += font[realtxt[i]];
-            i++;
+    /* Fill background (skip if transparent — existing pixels are the background) */
+    if (!transparent) {
+        for (int y = 0; y < font_height; y++) {
+            uint16_t *row = &fb[(y_pos + y) * ODROID_SCREEN_WIDTH + x_pos];
+            for (int x = 0; x < width; x++)
+                row[x] = color_bg;
         }
-        realtxt[i - 1] = 0;
-        // paint end point
-        overlay_buffer[width * (font_height - 3) - 1] = get_darken_pixel(color, 80);
-        overlay_buffer[width * (font_height - 3) - 3] = get_darken_pixel(color, 80);
-        overlay_buffer[width * (font_height - 3) - 6] = get_darken_pixel(color, 80);
-    };
-#endif
+    }
+
+    /* Render glyphs directly to framebuffer */
     uint32_t codepoint;
     int bytes;
     while (*text) {
         bytes = utf8_decode(text, &codepoint);
-        if (bytes == 0) break; // Invalid sequence
+        if (bytes == 0) break;
         text += bytes;
 
         FontEntry *entry = get_font_data(codepoint);
-        if (entry == NULL) {
-//            printf("Font data not found for codepoint: %ld\n", codepoint);
+        if (entry == NULL)
             continue;
-        }
         int cw = entry->width;
         if ((x_offset + cw) > width)
             break;
         if (cw != 0) {
             int line_bytes = (cw + 7) / 8;
-            for (int y = 0; y < font_height; y++)
-            {
+            for (int y = 0; y < font_height; y++) {
                 uint32_t *pixels_data = (uint32_t *)&(entry->char_data[y * line_bytes]);
-                int offset = x_offset + (width * y);
-                for (int x = 0; x < cw; x++)
-                {
+                uint16_t *row = &fb[(y_pos + y) * ODROID_SCREEN_WIDTH + x_pos + x_offset];
+                for (int x = 0; x < cw; x++) {
                     if (pixels_data[0] & (1 << x))
-                        overlay_buffer[offset + x] = color;
+                        row[x] = color;
                 }
             }
         }
         x_offset += cw;
     }
 
-#if 0
-        if (codepoint < 0x100) {
-            char *draw_font = font;
-            int cw = draw_font[codepoint]; // width;
-            if ((x_offset + cw) > width)
-                break;
-            if (cw != 0)
-            {
-                int d_pos = draw_font[codepoint * 2 + 0x100] + draw_font[codepoint * 2 + 0x101] * 0x100; // data pos
-                int line_bytes = (cw + 7) / 8;
-                for (int y = 0; y < font_height; y++)
-                {
-                    uint32_t *pixels_data = (uint32_t *)&(draw_font[0x300 + d_pos + y * line_bytes]);
-                    int offset = x_offset + (width * y);
-
-                    for (int x = 0; x < cw; x++)
-                    {
-                        if (pixels_data[0] & (1 << x))
-                            overlay_buffer[offset + x] = color;
-                    }
-                }
-            }
-            x_offset += cw;
-        } else if (codepoint >= 0x410 && codepoint <= 0x44F) {
-            codepoint = codepoint - 0x410 + 0xC0; // 0x400 utf8 codepoint is 0x80 in cp1251 font
-            char *draw_font = cp1251_fonts[curr_font];
-            int cw = draw_font[codepoint]; // width;
-            if ((x_offset + cw) > width)
-                break;
-            if (cw != 0)
-            {
-                int d_pos = draw_font[codepoint * 2 + 0x100] + draw_font[codepoint * 2 + 0x101] * 0x100; // data pos
-                int line_bytes = (cw + 7) / 8;
-                for (int y = 0; y < font_height; y++)
-                {
-                    uint32_t *pixels_data = (uint32_t *)&(draw_font[0x300 + d_pos + y * line_bytes]);
-                    int offset = x_offset + (width * y);
-
-                    for (int x = 0; x < cw; x++)
-                    {
-                        if (pixels_data[0] & (1 << x))
-                            overlay_buffer[offset + x] = color;
-                    }
-                }
-            }
-            x_offset += cw;
-        }
-    }
-#endif
-
-    odroid_display_write(x_pos, y_pos, width, font_height, overlay_buffer);
     return font_height;
 }
 

@@ -56,7 +56,7 @@ ENTRY(Reset_Handler)
 _estack = _stack_top;    /* end of RAM */
 
 /* Generate a link error if heap and stack don't fit into RAM */
-_Heap_Size = 32 * 1024;     /* required amount of heap */
+_Heap_Size = 22 * 1024;     /* reduced from 32KB to fit PICO-8 p8.ram in DTCM */
 
 _Stack_Redzone_Size = 256;  /* size of stack overflow protection */
 _Min_Stack_Size = 24 * 1024; /* required amount of stack */
@@ -640,6 +640,34 @@ INCLUDE build/fceumm_mappers.ld
   }
   _OVERLAY_PKMINI_BSS_SIZE = SIZEOF(.overlay_pkmini_bss);
 
+  .overlay_pico8 __RAM_EMU_START__ : {
+    . = ALIGN(4);
+    __ram_emu_pico8_start__ = .;
+    /* Entry trampoline MUST be first — firmware dispatches via function
+       pointer at __RAM_EMU_START__, so the entry must be at offset 0. */
+    KEEP(*(.pico8_entry))
+    _PICO8_MAIN_CODE_START = .;
+    build/pico8/main_pico8.o (.text .text* .data .data* .rodata .rodata*)
+    _PICO8_MAIN_CODE_END = .;
+    build/pico8/*.o (.data .data* .text .text* .rodata .rodata*)
+    . = ALIGN(4);
+    _OVERLAY_PICO8_LOAD_END = .;
+  } AT > CORES
+  _OVERLAY_PICO8_LOAD_START = LOADADDR(.overlay_pico8);
+  _OVERLAY_PICO8_SIZE = SIZEOF(.overlay_pico8);
+
+  .overlay_pico8_bss _OVERLAY_PICO8_LOAD_END : {
+    . = ALIGN(4);
+    _OVERLAY_PICO8_BSS_START = .;
+    build/pico8/*.o (.bss .bss*)
+    . = ALIGN(4);
+    build/pico8/*.o (COMMON)
+    __ram_emu_pico8_end__ = .;
+    _OVERLAY_PICO8_BSS_END = .;
+    ASSERT(ABSOLUTE(_OVERLAY_PICO8_BSS_END) < __RAM_EMU_END__, "Error: PICO8 BSS overflow");
+  }
+  _OVERLAY_PICO8_BSS_SIZE = SIZEOF(.overlay_pico8_bss);
+
   .overlay_graphics : {
     . = ALIGN(4);
     KEEP(*(.sdcard_logo))
@@ -667,6 +695,17 @@ INCLUDE build/fceumm_mappers.ld
     . = ALIGN(4);
     KEEP(*(.isr_vector)) /* Startup code */
     . = ALIGN(4);
+  } >FLASH
+
+  /* Firmware ABI table at a fixed offset from intflash start (0x400).
+     Plugins (runtime-loaded overlays like the separately-distributed
+     PICO-8 engine) resolve the absolute address at load time by reading
+     VTOR and adding GW_FIRMWARE_ABI_OFFSET. Works regardless of whether
+     the firmware runs from bank 1 (0x08000000) or bank 2 (0x08100000).
+     See Core/Inc/retro-go/gw_firmware_abi.h for the contract. */
+  .firmware_abi ORIGIN(FLASH) + 0x400 :
+  {
+    KEEP(*(.firmware_abi))
   } >FLASH
 
   /* The program code and other data goes into FLASH */
@@ -775,6 +814,17 @@ INCLUDE build/fceumm_mappers.ld
     . = ALIGN(4);
     _ebss = .;         /* define a global symbol at bss end */
     __bss_end__ = _ebss;
+  } >DTCMRAM
+
+  /* PICO-8 RAM (64KB) in DTCM for zero-wait-state access.
+     Must match the closed engine's linker so the engine binary finds
+     __dtcm_p8ram_start__ at the correct address. */
+  ._dtcm_p8ram (NOLOAD) :
+  {
+    . = ALIGN(4);
+    __dtcm_p8ram_start__ = .;
+    . = . + 0x10000;  /* P8_RAM_SIZE = 64KB */
+    __dtcm_p8ram_end__ = .;
   } >DTCMRAM
 
   ._user_heap :

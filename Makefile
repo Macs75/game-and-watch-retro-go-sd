@@ -790,7 +790,14 @@ $(CORE_PKMINI)/source/Video.c \
 $(CORE_PKMINI)/resource/PokeMini_ColorPal.c \
 Core/Src/porting/pkmini/main_pkmini.c
 
-CELESTE_C_SOURCES = 
+# PICO-8: stub firmware only ships main_pico8.c (install-prompt screen).
+# The full engine (pico8-engine repo) adds its own sources via
+# PICO8_CXX_SOURCES / PICO8_CXX_STUBS — kept out of this Makefile so the
+# GPL build doesn't depend on the proprietary engine source tree.
+PICO8_C_SOURCES = \
+Core/Src/porting/pico8/main_pico8.c
+
+CELESTE_C_SOURCES =
 
 CORE_CCLESTE = external/ccleste-go
 CELESTE_C_SOURCES += \
@@ -1065,16 +1072,25 @@ PKMINI_C_INCLUDES +=  \
 -I$(CORE_PKMINI)/libretro/libretro-common/include \
 -I./
 
+PICO8_C_INCLUDES = \
+-ICore/Inc \
+-ICore/Src/porting/lib \
+-Iretro-go-stm32/components/odroid \
+-DP8_EMBEDDED \
+-DP8_USE_POOL_ALLOC \
+-DLUA_USE_LONGJMP \
+-I./
+
 include Makefile.common
 
 
 $(BUILD_DIR)/$(TARGET)_extflash.bin: $(BUILD_DIR)/$(TARGET).elf | $(BUILD_DIR)
 	$(V)$(ECHO) [ BIN ] $(notdir $@)
-	$(V)$(BIN) -j ._itcram_hot -j ._ram_exec -j ._extflash -j .overlay_nes -j .overlay_nes_fceu -j .overlay_gb -j .overlay_tgb -j .overlay_sms -j .overlay_col -j .overlay_pce -j .overlay_msx -j .overlay_gw -j .overlay_wsv -j .overlay_md -j .overlay_a2600 -j .overlay_a7800 -j .overlay_amstrad -j .overlay_zelda3 -j .overlay_smw -j .overlay_videopac -j .overlay_celeste -j .overlay_tama -j .overlay_pkmini $< $(BUILD_DIR)/$(TARGET)_extflash.bin
+	$(V)$(BIN) -j ._itcram_hot -j ._ram_exec -j ._extflash -j .overlay_nes -j .overlay_nes_fceu -j .overlay_gb -j .overlay_tgb -j .overlay_sms -j .overlay_col -j .overlay_pce -j .overlay_msx -j .overlay_gw -j .overlay_wsv -j .overlay_md -j .overlay_a2600 -j .overlay_a7800 -j .overlay_amstrad -j .overlay_zelda3 -j .overlay_smw -j .overlay_videopac -j .overlay_celeste -j .overlay_tama -j .overlay_pkmini -j .overlay_pico8 $< $(BUILD_DIR)/$(TARGET)_extflash.bin
 
 $(BUILD_DIR)/$(TARGET)_intflash.bin: $(BUILD_DIR)/$(TARGET).elf | $(BUILD_DIR)
 	$(V)$(ECHO) [ BIN ] $(notdir $@)
-	$(V)$(BIN) -j .isr_vector -j .text -j .rodata -j .ARM.extab -j .preinit_array -j .init_array -j .fini_array -j .data $< $(BUILD_DIR)/$(TARGET)_intflash.bin
+	$(V)$(BIN) -j .isr_vector -j .firmware_abi -j .text -j .rodata -j .ARM.extab -j .preinit_array -j .init_array -j .fini_array -j .data $< $(BUILD_DIR)/$(TARGET)_intflash.bin
 
 $(BUILD_DIR)/$(TARGET)_intflash2.bin: $(BUILD_DIR)/$(TARGET).elf | $(BUILD_DIR)
 	$(V)$(ECHO) [ BIN ] $(notdir $@)
