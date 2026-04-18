@@ -4,6 +4,8 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <sys/stat.h>
+#include <assert.h>
+#include "stm32h7xx.h"
 #include "main.h"
 #include "crc32.h"
 #include "gw_flash.h"
@@ -14,7 +16,12 @@
 #include "gw_ofw.h"
 
 #define METADATA_FILE ODROID_BASE_PATH_SAVES "/flashcachedata.bin"
+#define METADATA_VERSION 1
 #define MAX_FILES 50
+
+typedef struct {
+    uint32_t uid[3];
+} CpuUniqueId;
 
 // Metadata for each file
 typedef struct
@@ -28,6 +35,8 @@ typedef struct
 // Global Metadata
 typedef struct
 {
+    uint32_t version;
+    CpuUniqueId cpu_unique_id;
     FileMetadata files[MAX_FILES];
     uint32_t flash_write_pointer;  // A value like 0x9YYYYYYY; the current location we should write to.
     uint32_t flash_write_base;     // A value like 0x9YYYYYYY; the starting point we are allowed to write to.
@@ -36,6 +45,14 @@ typedef struct
 
 static Metadata *metadata = NULL;
 static uint32_t flash_write_pointer = 0;
+
+static CpuUniqueId get_cpu_unique_id() {
+    CpuUniqueId uid;
+    uid.uid[0] = HAL_GetUIDw0();
+    uid.uid[1] = HAL_GetUIDw1();
+    uid.uid[2] = HAL_GetUIDw2();
+    return uid;
+}
 
 static uint32_t compute_file_crc32(const char *file_path)
 {
@@ -62,38 +79,62 @@ static uint32_t get_extflash_base()
     return align_to_next_block(((uint32_t)&__EXTFLASH_BASE__) + get_ofw_extflash_size());
 }
 
+static void reset_metadata(uint32_t flash_write_base) {
+    assert(metadata != NULL);
+
+    memset(metadata, 0, sizeof(Metadata));
+    metadata->version = METADATA_VERSION;
+    metadata->cpu_unique_id = get_cpu_unique_id();
+    metadata->flash_write_base = flash_write_base;
+    metadata->flash_write_pointer = flash_write_base;
+}
+
+static void initialize_metadata() {
+    if (metadata != NULL) {
+        return;
+    }
+
+    metadata = ram_calloc(1, sizeof(Metadata));
+    reset_metadata(0);
+}
+
 static void load_metadata()
 {
-    if (metadata == NULL)
-    {
-        metadata = ram_calloc(1, sizeof(Metadata));
-    }
+    initialize_metadata();
 
     uint32_t base = get_extflash_base();
 
     FILE *file = fopen(METADATA_FILE, "rb");
     if (!file)
     {
-        // File does not exist; invalidate_cache
-        metadata->flash_write_base = base;
-        metadata->flash_write_pointer = metadata->flash_write_base;
+        // File does not exist; invalidate cache
+        reset_metadata(base);
         return;
     }
     fseek(file, 0, SEEK_END);
     if(ftell(file) != sizeof(Metadata)){
         // Stored metadata doesn't match our current structure; invalidate cache.
-        metadata->flash_write_base = base;
-        metadata->flash_write_pointer = metadata->flash_write_base;
-        return;
+        reset_metadata(base);
+        goto cleanup;
     }
     fseek(file, 0, SEEK_SET);
     fread(metadata, sizeof(Metadata), 1, file);
-    if(metadata->flash_write_base != base){
-        // The stored base address does not match whats currently in bank 1; invalidate cache.
-        metadata->flash_write_base = base;
-        metadata->flash_write_pointer = metadata->flash_write_base;
-        return;
-    } 
+
+    CpuUniqueId cpu_unique_id = get_cpu_unique_id();
+    bool metadata_valid = 
+        metadata->flash_write_base == base &&
+        metadata->version == METADATA_VERSION &&
+        memcmp(&metadata->cpu_unique_id, &cpu_unique_id, sizeof(CpuUniqueId)) == 0;
+    if(!metadata_valid) {
+        // The stored base address does not match whats currently in bank 1; 
+        // or metadata version mismatch; 
+        // or the cache is from a different device;
+        // invalidate cache.
+        reset_metadata(base);
+        goto cleanup;
+    }
+
+    cleanup:
     fclose(file);
 }
 
@@ -114,10 +155,7 @@ static void initialize_flash_pointer()
 
 static void update_flash_pointer(uint32_t new_pointer)
 {
-    if (metadata == NULL)
-    {
-        metadata = ram_calloc(1, sizeof(Metadata));
-    }
+    initialize_metadata();
     metadata->flash_write_pointer = new_pointer;
     save_metadata();
 }
@@ -253,10 +291,7 @@ void flash_alloc_reset()
 
 uint8_t *store_file_in_flash(const char *file_path, uint32_t *file_size_p, bool byte_swap, file_progress_cb_t progress_cb)
 {
-    if (metadata == NULL)
-    {
-        metadata = calloc(1, sizeof(Metadata));
-    }
+    initialize_metadata();
     initialize_flash_pointer();
     // TODO : append file modification time to filepath for crc32
     // to handle case where rom file in sd card has been modified

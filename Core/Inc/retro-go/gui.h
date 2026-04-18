@@ -51,7 +51,7 @@ typedef void (*gui_event_handler_t)(gui_event_t event, void *arg);
 
 typedef struct {
     char name[64];
-    char status[64];
+    char status[96];
     int16_t header_idx;
     int16_t logo_idx;
     bool initialized;
@@ -93,6 +93,11 @@ void gui_resize_list(tab_t *tab, int new_size);
 listbox_item_t *gui_get_selected_item(tab_t *tab);
 
 void gui_event(gui_event_t event, tab_t *tab);
+/** Pop one ROM browse level if tab is inside a subfolder; refreshes list. */
+bool rg_emulator_browse_pop_if_in_subfolder(tab_t *tab);
+/** True when ROM list is browsing below /roms/<system>/ (not root of that system). */
+bool rg_emulator_tab_in_rom_subfolder(const tab_t *tab);
+bool rg_emulator_validate_browse_path_for_tab(tab_t *tab);
 void gui_redraw_callback(void);
 void gui_redraw(void);
 void gui_draw_header(tab_t *tab);

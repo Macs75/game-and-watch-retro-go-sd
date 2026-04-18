@@ -610,7 +610,10 @@ void retro_loop()
     bool power_key_pressed = false;
 
     // Variable to measure the time the button has been pressed
-    static uint32_t key_press_start_time = 0; 
+    static uint32_t key_press_start_time = 0;
+    /* Inside a ROM subfolder: long B = parent folder; short B = KEY_PRESS_B (infos). */
+    static uint32_t b_subfolder_hold_t0 = 0;
+    static bool b_subfolder_long_consumed = false;
 
 #pragma GCC diagnostic ignored "-Wint-conversion"
 #pragma GCC diagnostic ignored "-Wdiscarded-qualifiers"
@@ -649,6 +652,53 @@ void retro_loop()
 
         odroid_input_read_gamepad(&gui.joystick);
 
+        int key_up = ODROID_INPUT_UP;
+        int key_down = ODROID_INPUT_DOWN;
+        int key_left = ODROID_INPUT_LEFT;
+        int key_right = ODROID_INPUT_RIGHT;
+#if COVERFLOW != 0
+        {
+            int hori_view = odroid_settings_theme_get();
+            if ((hori_view == 2) | (hori_view == 3))
+            {
+                key_up = ODROID_INPUT_LEFT;
+                key_down = ODROID_INPUT_RIGHT;
+                key_left = ODROID_INPUT_UP;
+                key_right = ODROID_INPUT_DOWN;
+            }
+        }
+#endif
+
+        if (rg_emulator_tab_in_rom_subfolder(tab))
+        {
+            if (gui.joystick.values[ODROID_INPUT_B])
+            {
+                if (b_subfolder_hold_t0 == 0)
+                    b_subfolder_hold_t0 = get_elapsed_time();
+                else if (!b_subfolder_long_consumed &&
+                         get_elapsed_time() - b_subfolder_hold_t0 >= 500)
+                {
+                    if (rg_emulator_browse_pop_if_in_subfolder(tab))
+                        b_subfolder_long_consumed = true;
+                }
+            }
+            else
+            {
+                if (b_subfolder_hold_t0 != 0 && !b_subfolder_long_consumed)
+                    gui_event(KEY_PRESS_B, tab);
+                b_subfolder_hold_t0 = 0;
+                b_subfolder_long_consumed = false;
+            }
+        }
+        else
+        {
+            if (!gui.joystick.values[ODROID_INPUT_B])
+            {
+                b_subfolder_hold_t0 = 0;
+                b_subfolder_long_consumed = false;
+            }
+        }
+
         if (idle_s > 0 && gui.joystick.bitmask == 0)
         {
             gui_event(TAB_IDLE, tab);
@@ -668,21 +718,6 @@ void retro_loop()
                     power_key_pressed = false;
                 }
             }
-
-            int key_up = ODROID_INPUT_UP;
-            int key_down = ODROID_INPUT_DOWN;
-            int key_left = ODROID_INPUT_LEFT;
-            int key_right = ODROID_INPUT_RIGHT;
-#if COVERFLOW != 0
-            int hori_view = odroid_settings_theme_get();
-            if ((hori_view== 2) | (hori_view==3))
-            {
-                key_up = ODROID_INPUT_LEFT;
-                key_down = ODROID_INPUT_RIGHT;
-                key_left = ODROID_INPUT_UP;
-                key_right = ODROID_INPUT_DOWN;
-            }
-#endif
 
             if ((last_key == ODROID_INPUT_START) || (last_key == ODROID_INPUT_X))
             {
@@ -742,7 +777,8 @@ void retro_loop()
             }
             else if (last_key == ODROID_INPUT_B)
             {
-                gui_event(KEY_PRESS_B, tab);
+                if (!rg_emulator_tab_in_rom_subfolder(tab))
+                    gui_event(KEY_PRESS_B, tab);
             }
             else if (last_key == ODROID_INPUT_POWER && !power_key_pressed)
             {
@@ -754,7 +790,8 @@ void retro_loop()
                 }
                 else {
                     odroid_system_sleep_ex(SLEEP_ENTER_SLEEP_WITH_ANIMATION, NULL);
-                    gui_refresh_tab(tab);
+                    if (!rg_emulator_validate_browse_path_for_tab(tab))
+                        gui_refresh_tab(tab);
                     power_key_pressed = true;
                 }
             }
@@ -777,6 +814,8 @@ void retro_loop()
         {
             printf("Idle timeout expired\n");
             odroid_system_sleep();
+            if (!rg_emulator_validate_browse_path_for_tab(tab))
+                gui_refresh_tab(tab);
         }
 
         gui_redraw();
@@ -966,13 +1005,15 @@ void GLOBAL_DATA app_main(uint8_t boot_mode)
     }
 
     emulators_init();
+    rg_emulators_restore_main_menu_browse_path();
 
     // Start the previously running emulator directly if it's a valid pointer.
-    // If the user holds down the TIME button during startup,start the retro-go
-    // gui instead of the last ROM as a fallback.
+    // If the user holds down TIME during startup, skip resume lookup and go
+    // straight to launcher UI (avoids an unnecessary full ROM scan at boot).
+    const bool force_launcher = ((GW_GetBootButtons() & B_TIME) != 0);
     char *startup_file = odroid_settings_StartupFile_get();
     retro_emulator_file_t *file = NULL;
-    if (strlen(startup_file) > 0) {
+    if (!force_launcher && strlen(startup_file) > 0) {
         file = emulator_get_file(startup_file);
     }
 
@@ -980,7 +1021,7 @@ void GLOBAL_DATA app_main(uint8_t boot_mode)
     uint8_t oc = odroid_settings_cpu_oc_level_get();
     SystemClock_Config(oc);
 
-    bool resume_emulator = (file != NULL) && ((GW_GetBootButtons() & B_TIME) == 0);
+    bool resume_emulator = (file != NULL);
     if (resume_emulator) {
         emulator_start(file, true, true, -1);
     }

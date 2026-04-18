@@ -14,6 +14,7 @@
 #include "gw_linker.h"
 #include "main.h"
 #include "rg_i18n.h"
+#include "rg_emulators.h"
 #include "gw_malloc.h"
 
 #if !defined(COVERFLOW)
@@ -146,6 +147,37 @@ static char str_buffer[128];
 
 retro_gui_t gui;
 
+/* Top Y/height of the list viewport (reduced when subfolder path strip is shown). */
+static int gui_list_view_y0;
+static int gui_list_view_h;
+
+static bool gui_tab_is_in_rom_subfolder(const tab_t *tab)
+{
+    if (!tab || !tab->arg)
+        return false;
+
+    const retro_emulator_t *emu = (const retro_emulator_t *)tab->arg;
+    return emu->browse_subpath[0] != '\0';
+}
+
+static void gui_list_begin_viewport(tab_t *tab)
+{
+    gui_list_view_y0 = LIST_Y_OFFSET;
+    gui_list_view_h = LIST_HEIGHT;
+
+    if (gui_tab_is_in_rom_subfolder(tab) && tab->status[0] != '\0')
+    {
+        int ph = i18n_get_text_height() + 4;
+        uint16_t strip_bg = get_darken_pixel_d(curr_colors->main_c, curr_colors->bg_c, 45);
+
+        odroid_overlay_draw_fill_rect(0, LIST_Y_OFFSET, LIST_WIDTH, ph, strip_bg);
+        i18n_draw_text_line(6, LIST_Y_OFFSET + 2, LIST_WIDTH - 12, tab->status, curr_colors->sel_c, strip_bg, 0);
+
+        gui_list_view_y0 = LIST_Y_OFFSET + ph;
+        gui_list_view_h = LIST_HEIGHT - ph;
+    }
+}
+
 void gui_event(gui_event_t event, tab_t *tab)
 {
     if (tab->event_handler)
@@ -242,6 +274,8 @@ void gui_save_current_tab()
 
     odroid_settings_MainMenuCursor_set(tab->listbox.cursor);
     odroid_settings_MainMenuSelectedTab_set(gui.selected);
+    if (tab->arg)
+        odroid_settings_MainMenuBrowseSubpath_set(((retro_emulator_t *)tab->arg)->browse_subpath);
     odroid_settings_commit();
 }
 
@@ -475,6 +509,9 @@ listbox_item_t *gui_get_item_by_index(tab_t *tab, int *index)
     listbox_t *list = &tab->listbox;
     int x = *index;
 
+    if (list->length == 0)
+        return NULL;
+
     if (x < 0)
         x = (list->length + x) % (list->length);
 
@@ -536,13 +573,13 @@ void gui_draw_simple_list(int posx, tab_t *tab)
         int font_height = i18n_get_text_height();
         int w = ODROID_SCREEN_WIDTH - posx - 12;
         listbox_item_t *item = &list->items[list->cursor];
-        int h1 = LIST_Y_OFFSET + (LIST_HEIGHT - font_height) / 2;
+        int h1 = gui_list_view_y0 + (gui_list_view_h - font_height) / 2;
         if (item)
             i18n_draw_text_line(posx, h1, w, list->items[list->cursor].text, curr_colors->sel_c, curr_colors->bg_c, 0);
 
         int index_next = list->cursor + 1;
         int index_proior = list->cursor - 1;
-        int max_line = (LIST_HEIGHT - font_height) / font_height / 2;
+        int max_line = (gui_list_view_h - font_height) / font_height / 2;
         int h2 = h1;
         h1++;
         for (int i = 0; i < max_line; i++)
@@ -550,7 +587,7 @@ void gui_draw_simple_list(int posx, tab_t *tab)
             listbox_item_t *next_item = gui_get_item_by_index(tab, &index_next);
             h1 = h1 + font_height + max_line - i;
             h2 = h2 - font_height - max_line + i;
-            if (h2 < LIST_Y_OFFSET) //out range;
+            if (h2 < gui_list_view_y0) //out range;
                 break;
             if (next_item)
                 i18n_draw_text_line(
@@ -575,7 +612,7 @@ void gui_draw_simple_list(int posx, tab_t *tab)
             index_proior--;
         }
         //draw currpostion
-        gui_draw_item_postion_v(ODROID_SCREEN_WIDTH - 5, LIST_Y_OFFSET + 4, LIST_Y_OFFSET + LIST_HEIGHT - 4, list->cursor + 1, list->length);
+        gui_draw_item_postion_v(ODROID_SCREEN_WIDTH - 5, gui_list_view_y0 + 4, gui_list_view_y0 + gui_list_view_h - 4, list->cursor + 1, list->length);
     }
 }
 
@@ -668,6 +705,29 @@ static void draw_centered_local_text_line(uint16_t y_pos,
     i18n_draw_text_line(x_pos + x1, y_pos, width, text, color, color_bg, 0);
 }
 
+static const char *gui_no_cover_text_for_item(const listbox_item_t *item)
+{
+    if (!item || !item->arg)
+        return curr_lang->s_No_Cover;
+
+    if (rg_rom_list_arg_is_parent(item->arg))
+    {
+        if (item->text && item->text[0] != '\0')
+            return item->text;
+        return curr_lang->s_No_Cover;
+    }
+
+    const retro_emulator_file_t *file = (const retro_emulator_file_t *)item->arg;
+    if (file->ext == NULL)
+    {
+        if (item->text && item->text[0] != '\0')
+            return item->text;
+        return curr_lang->s_No_Cover;
+    }
+
+    return curr_lang->s_No_Cover;
+}
+
 void gui_draw_item_postion_h(int posy, int startx, int endx, int cur, int size)
 {
     sprintf(str_buffer, "%d", size);
@@ -722,7 +782,7 @@ static bool gui_get_cover_size(retro_emulator_file_t *file, uint32_t *cov_width,
 
 void gui_draw_coverlight_h(retro_emulator_file_t *file, int cover_position)
 {
-    int32_t cover_x = 0, cover_y = 55;
+    int32_t cover_x = 0, cover_y = gui_list_view_y0 + 22;
     uint32_t cover_width = NOCOVER_WIDTH;
     uint32_t cover_height = NOCOVER_HEIGHT;
 
@@ -903,14 +963,14 @@ void gui_draw_coverlight_v(retro_emulator_file_t *file, int cover_position)
     case -2:
     {
         cover_x = 4;
-        cover_y = STATUS_HEIGHT + 8;
+        cover_y = gui_list_view_y0 + 8;
     }
     break;
     // middle
     case -1:
     {
         cover_x = 8; //16;
-        cover_y = (GW_LCD_HEIGHT - HEADER_HEIGHT - current_cover_height - 2 * COVER_BORDER + STATUS_HEIGHT) / 2;
+        cover_y = (GW_LCD_HEIGHT - HEADER_HEIGHT - current_cover_height - 2 * COVER_BORDER + gui_list_view_y0) / 2;
     }
     break;
 
@@ -987,8 +1047,8 @@ void gui_draw_coverflow_h(tab_t *tab) //------------
     //fisrt left point pos getted, get fisrt top point;
     int p_height1 = cover_height * 5 / 8;
     int p_height2 = cover_height * 7 / 8;
-    int v_space = LIST_HEIGHT - (cover_height + 6); //180-136=44-6=38-5=33-12=21,top 7,bot//top 11,bottom22
-    int cover_top = STATUS_HEIGHT + (v_space - font_height - 5 - 10) * 2 / 5 + 10;
+    int v_space = gui_list_view_h - (cover_height + 6); //180-136=44-6=38-5=33-12=21,top 7,bot//top 11,bottom22
+    int cover_top = gui_list_view_y0 + (v_space - font_height - 5 - 10) * 2 / 5 + 10;
     int p2_top = cover_top + (cover_height - p_height2) / 4 * 3;
     int p1_top = cover_top + (cover_height - p_height1) / 4 * 3;
     //let's start draw effect;
@@ -1047,7 +1107,7 @@ void gui_draw_coverflow_h(tab_t *tab) //------------
         }
         if (file->img_state == IMG_STATE_NO_COVER)
         {
-            draw_centered_local_text_line(cover_top + (cover_height - font_height) / 2, curr_lang->s_No_Cover, start_xpos + p_width1 + p_width2 + 10, start_xpos + p_width1 + p_width2 + 10 + cover_width, get_darken_pixel(curr_colors->main_c, 80), curr_colors->bg_c);
+            draw_centered_local_text_line(cover_top + (cover_height - font_height) / 2, gui_no_cover_text_for_item(item), start_xpos + p_width1 + p_width2 + 10, start_xpos + p_width1 + p_width2 + 10 + cover_width, get_darken_pixel(curr_colors->main_c, 80), curr_colors->bg_c);
         }
         else
         {
@@ -1081,7 +1141,7 @@ void gui_draw_coverflow_h(tab_t *tab) //------------
         }
         if (file->img_state == IMG_STATE_NO_COVER)
         {
-            draw_centered_local_text_line(cover_top + (cover_height - p_height2) / 4 * 3 + (p_height2 - font_height) / 2, curr_lang->s_No_Cover,
+            draw_centered_local_text_line(cover_top + (cover_height - p_height2) / 4 * 3 + (p_height2 - font_height) / 2, gui_no_cover_text_for_item(item),
                                           start_xpos + p_width1 + p_width2 + cover_width + 17,
                                           start_xpos + p_width1 + p_width2 * 2 + cover_width + 17, get_darken_pixel(curr_colors->dis_c, 80), curr_colors->bg_c);
         }
@@ -1116,7 +1176,7 @@ void gui_draw_coverflow_h(tab_t *tab) //------------
         }
         if (file->img_state == IMG_STATE_NO_COVER)
         {
-            draw_centered_local_text_line(cover_top + (cover_height - p_height2) / 4 * 3 + (p_height2 - font_height) / 2, curr_lang->s_No_Cover,
+            draw_centered_local_text_line(cover_top + (cover_height - p_height2) / 4 * 3 + (p_height2 - font_height) / 2, gui_no_cover_text_for_item(item),
                                           start_xpos + p_width1 + 5,
                                           start_xpos + p_width1 + p_width2 + 5, get_darken_pixel(curr_colors->dis_c, 80), curr_colors->bg_c);
         }
@@ -1197,8 +1257,13 @@ void gui_draw_coverflow_h(tab_t *tab) //------------
     item = gui_get_item_by_index(tab, &index);
     if (item)
     {
-        file = (retro_emulator_file_t *)item->arg;
-        snprintf(str_buffer, 128, "%s", file->name);
+        if (rg_rom_list_arg_is_parent(item->arg))
+            snprintf(str_buffer, 128, "%s", item->text ? item->text : "");
+        else
+        {
+            file = (retro_emulator_file_t *)item->arg;
+            snprintf(str_buffer, 128, "%s", file->name);
+        }
         size_t width = i18n_get_text_width(str_buffer);
         if (width > (ODROID_SCREEN_WIDTH - 24))
             width = ODROID_SCREEN_WIDTH - 24;
@@ -1237,11 +1302,11 @@ void gui_draw_coverflow_v(tab_t *tab, int start_posx) // ||||||||
         }
     }
     //top ____|_|__|_(pl)__||_(main)_||__(pr)_|__|_|____ min 40;
-    int p_height = (LIST_HEIGHT - cover_height - space_height) / 2;
+    int p_height = (gui_list_view_h - cover_height - space_height) / 2;
     p_height = (p_height > cover_height) ? cover_height : p_height; //space width than real width, draw full size;
     p_height = p_height < 0 ? 0 : p_height;
     //real height = 32-8 = 24 //max = 136
-    int start_ypos = STATUS_HEIGHT + (LIST_HEIGHT - ((p_height * 2) + cover_height + space_height)) / 2 + 4;
+    int start_ypos = gui_list_view_y0 + (gui_list_view_h - ((p_height * 2) + cover_height + space_height)) / 2 + 4;
     //fisrt top point pos getted;
     start_ypos = start_ypos < 0 ? 0 : start_ypos;
     int p_width1 = cover_width * 7 / 8;
@@ -1282,7 +1347,7 @@ void gui_draw_coverflow_v(tab_t *tab, int start_posx) // ||||||||
             }
         }
         if (file->img_state == IMG_STATE_NO_COVER)
-            draw_centered_local_text_line(start_ypos + p_height + 16 + (cover_height - font_height) / 2, curr_lang->s_No_Cover, start_posx + 3, start_posx + 3 + cover_width, get_darken_pixel(curr_colors->main_c, 80), curr_colors->bg_c);
+            draw_centered_local_text_line(start_ypos + p_height + 16 + (cover_height - font_height) / 2, gui_no_cover_text_for_item(item), start_posx + 3, start_posx + 3 + cover_width, get_darken_pixel(curr_colors->main_c, 80), curr_colors->bg_c);
         else
         {
             JPEG_DecodeToBuffer((uint32_t)(file->img_address), (uint32_t)pCover_Buffer, &jpeg_cover_width, &jpeg_cover_height, 255);
@@ -1308,7 +1373,7 @@ void gui_draw_coverflow_v(tab_t *tab, int start_posx) // ||||||||
             if (file->img_state == IMG_STATE_NO_COVER)
             {
                 if (p_height > font_height)
-                    draw_centered_local_text_line(start_ypos + p_height + cover_height + 21 + (p_height - font_height) / 2, curr_lang->s_No_Cover, start_posx + 3, start_posx + 3 + cover_width, get_darken_pixel(curr_colors->dis_c, 80), curr_colors->bg_c);
+                    draw_centered_local_text_line(start_ypos + p_height + cover_height + 21 + (p_height - font_height) / 2, gui_no_cover_text_for_item(item), start_posx + 3, start_posx + 3 + cover_width, get_darken_pixel(curr_colors->dis_c, 80), curr_colors->bg_c);
             }
             else
             {
@@ -1337,7 +1402,7 @@ void gui_draw_coverflow_v(tab_t *tab, int start_posx) // ||||||||
                 {
                     if (p_height > font_height)
                         draw_centered_local_text_line(start_ypos + 11 + (p_height - font_height) / 2,
-                                                      curr_lang->s_No_Cover,
+                                                      gui_no_cover_text_for_item(item),
                                                       start_posx + 3,
                                                       start_posx + 3 + cover_width,
                                                       get_darken_pixel(curr_colors->dis_c, 80),
@@ -1363,7 +1428,8 @@ void gui_draw_coverflow_v(tab_t *tab, int start_posx) // ||||||||
 
 void gui_draw_list(tab_t *tab)
 {
-    odroid_overlay_draw_fill_rect(0, LIST_Y_OFFSET, LIST_WIDTH, LIST_HEIGHT, curr_colors->bg_c);
+    gui_list_begin_viewport(tab);
+    odroid_overlay_draw_fill_rect(0, gui_list_view_y0, LIST_WIDTH, gui_list_view_h, curr_colors->bg_c);
 
 #if COVERFLOW != 0
     int theme_index = odroid_settings_theme_get();
@@ -1398,11 +1464,12 @@ void gui_draw_list(tab_t *tab)
             sprintf(str_buffer, "%d/%d", list->cursor + 1, list->length);
             //
             int width = strlen(str_buffer) * odroid_overlay_get_font_width();
-            odroid_overlay_draw_fill_rect((ODROID_SCREEN_WIDTH - width) / 2 - 2, 44, width + 4, 12, curr_colors->sel_c);
-            odroid_overlay_draw_fill_rect((ODROID_SCREEN_WIDTH - width) / 2 - 2 - 1, 45, 1, 10, get_darken_pixel(curr_colors->dis_c, 40));
-            odroid_overlay_draw_fill_rect((ODROID_SCREEN_WIDTH - width) / 2 - 2 + width + 4, 45, 1, 10, get_darken_pixel(curr_colors->dis_c, 40));
-            odroid_overlay_draw_fill_rect((ODROID_SCREEN_WIDTH - width) / 2 - 2 + 1, 43, width + 2, 1, get_darken_pixel(curr_colors->dis_c, 40));
-            odroid_overlay_draw_text_line((ODROID_SCREEN_WIDTH - width) / 2, 46, width, str_buffer, curr_colors->bg_c, curr_colors->sel_c);
+            int count_y = gui_list_view_y0 + 11;
+            odroid_overlay_draw_fill_rect((ODROID_SCREEN_WIDTH - width) / 2 - 2, count_y, width + 4, 12, curr_colors->sel_c);
+            odroid_overlay_draw_fill_rect((ODROID_SCREEN_WIDTH - width) / 2 - 2 - 1, count_y + 1, 1, 10, get_darken_pixel(curr_colors->dis_c, 40));
+            odroid_overlay_draw_fill_rect((ODROID_SCREEN_WIDTH - width) / 2 - 2 + width + 4, count_y + 1, 1, 10, get_darken_pixel(curr_colors->dis_c, 40));
+            odroid_overlay_draw_fill_rect((ODROID_SCREEN_WIDTH - width) / 2 - 2 + 1, count_y - 1, width + 2, 1, get_darken_pixel(curr_colors->dis_c, 40));
+            odroid_overlay_draw_text_line((ODROID_SCREEN_WIDTH - width) / 2, count_y + 2, width, str_buffer, curr_colors->bg_c, curr_colors->sel_c);
         }
     }
     break;

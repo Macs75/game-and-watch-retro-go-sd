@@ -52,6 +52,8 @@ typedef struct {
 #endif
 } retro_emulator_file_t;
 
+bool rg_rom_list_arg_is_parent(const void *arg);
+
 typedef struct {
     char system_name[32];
     char dirname[16];
@@ -65,12 +67,15 @@ typedef struct {
         int count;
         int maxcount;
     } roms;
+    /** Relative path under ROM dir. */
+    char browse_subpath[96];
     bool initialized;
     rom_system_t *system;
 } retro_emulator_t;
 
 
 void emulators_init();
+void rg_emulators_restore_main_menu_browse_path(void);
 void emulator_init(retro_emulator_t *emu);
 void emulator_refresh_list(retro_emulator_t *emu);
 void emulator_start(retro_emulator_file_t *file, bool load_state, bool start_paused, int8_t save_slot);
