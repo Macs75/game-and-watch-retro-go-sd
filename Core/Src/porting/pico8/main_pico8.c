@@ -24,6 +24,7 @@ extern "C" {
 
 /* PICO-8 engine headers */
 #include "p8_core.h"
+#include "p8_platform.h"
 #include "p8_pool_alloc.h"
 #include "sys_api.h"
 #include "lua.h"
@@ -40,42 +41,6 @@ extern "C" {
     /* ITCM sentinel patching (set by rg_emulators.c before app_main_pico8) */
     extern uint8_t *pico8_code_flash_addr;
     extern uint32_t pico8_code_flash_size;
-}
-
-/* Initialize the secondary TLSF pool in unused AHB-RAM (~120KB).
- * AHB-RAM is uncached (DMA-safe), slightly slower than AXI-RAM but
- * perfectly fine for Lua table/string storage. This gives large
- * allocations (64KB+ string table resizes) an unfragmented region
- * separate from the main heap where small objects cause fragmentation. */
-void p8_ahb_pool_setup(void) {
-    uint32_t ahb_end_addr = (uint32_t)&__ahbram_end__;
-    uint32_t ahb_region_end = 0x30000000 + (uint32_t)&__AHBRAM_LENGTH__;
-    /* Align start to 8 bytes */
-    ahb_end_addr = (ahb_end_addr + 7) & ~7u;
-    if (ahb_end_addr < ahb_region_end) {
-        size_t ahb_free = ahb_region_end - ahb_end_addr;
-        printf("P8: AHB pool: %u KB at 0x%08X\n", (unsigned)(ahb_free / 1024), (unsigned)ahb_end_addr);
-        p8_pool_init_ahb((void*)ahb_end_addr, ahb_free);
-    }
-}
-
-/* Initialize SRD-SRAM pool (32KB @ 0x38000000).
- * This RAM region is completely unused by retro-go. Needs RCC clock enable. */
-void p8_srd_pool_setup(void) {
-    /* Enable SRD-SRAM clock */
-    RCC->AHB4ENR |= RCC_AHB4ENR_SRDSRAMEN;
-    __DSB();  /* ensure clock is enabled before accessing the RAM */
-
-    void* srd_start = (void*)0x38000000;
-    size_t srd_size = 32 * 1024;
-    /* Quick sanity check: write and read back */
-    *(volatile uint32_t*)srd_start = 0xDEADBEEF;
-    if (*(volatile uint32_t*)srd_start == 0xDEADBEEF) {
-        printf("P8: SRD pool: %u KB at 0x%08X\n", (unsigned)(srd_size / 1024), (unsigned)(uintptr_t)srd_start);
-        p8_pool_init_srd(srd_start, srd_size);
-    } else {
-        printf("P8: SRD-SRAM not accessible!\n");
-    }
 }
 
 /* Initialize ITCM (zero-wait-state RAM, 480MHz):
@@ -721,6 +686,15 @@ static void p8_blit(void) {
 
 /* Firmware ABI bridge sync — writes shared variables back to firmware */
 extern "C" void p8_firmware_bridge_sync(void);
+extern "C" void *p8_firmware_bridge_get_dtcm_ram(void);
+
+/* Platform descriptor — filled once in p8_app_init, passed to engine */
+static p8_platform_t g_platform;
+
+/* Forward declarations for platform hooks */
+void p8_embedded_snapshot_rom(void);
+int p8_cart_extract(const char* path, bool soft_load,
+                    uint8_t** out_code, int* out_len);
 
 /* One-shot setup: framework init, cart load, pools, audio, LCD clear. */
 static void p8_app_init(void)
@@ -743,6 +717,58 @@ static void p8_app_init(void)
     }
 
     printf("P8: RAM free before init: %u KB\n", (unsigned)(ram_get_free_size() / 1024));
+
+    /* Populate platform descriptor for the engine */
+    memset(&g_platform, 0, sizeof(g_platform));
+    {
+        size_t avail = ram_get_free_size();
+        size_t pool_sz = avail > 2048 ? avail - 1024 : avail;
+        g_platform.pool_base = ram_malloc(pool_sz);
+        g_platform.pool_size = pool_sz;
+    }
+
+    /* AHB overflow pool */
+    {
+        uint32_t ahb_end_addr = (uint32_t)&__ahbram_end__;
+        uint32_t ahb_region_end = 0x30000000 + (uint32_t)&__AHBRAM_LENGTH__;
+        if (ahb_end_addr < ahb_region_end) {
+            size_t ahb_free = ahb_region_end - ahb_end_addr;
+            g_platform.ahb_pool_base = (void*)ahb_end_addr;
+            g_platform.ahb_pool_size = ahb_free;
+            printf("P8: AHB pool: %u KB at 0x%08X\n",
+                   (unsigned)(ahb_free / 1024), (unsigned)ahb_end_addr);
+        }
+    }
+
+    /* SRD-SRAM pool (32KB @ 0x38000000, needs RCC clock enable) */
+    {
+        RCC->AHB4ENR |= RCC_AHB4ENR_SRDSRAMEN;
+        __DSB();
+        void *srd_start = (void*)0x38000000;
+        size_t srd_size = 32 * 1024;
+        *(volatile uint32_t*)srd_start = 0xDEADBEEF;
+        if (*(volatile uint32_t*)srd_start == 0xDEADBEEF) {
+            g_platform.srd_pool_base = srd_start;
+            g_platform.srd_pool_size = srd_size;
+            printf("P8: SRD pool: %u KB at 0x%08X\n",
+                   (unsigned)(srd_size / 1024), (unsigned)(uintptr_t)srd_start);
+        } else {
+            printf("P8: SRD-SRAM not accessible!\n");
+        }
+    }
+
+    g_platform.dtcm_ram       = p8_firmware_bridge_get_dtcm_ram();
+    g_platform.scratch_base   = lcd_get_inactive_buffer();
+    g_platform.scratch_size   = GW_LCD_WIDTH * GW_LCD_HEIGHT * sizeof(uint16_t);
+    g_platform.itcm_calloc    = itc_calloc;
+    g_platform.get_time_ms    = HAL_GetTick;
+    g_platform.delay_ms       = HAL_Delay;
+    g_platform.wdog_refresh   = wdog_refresh;
+    g_platform.platform_init  = p8_itcm_init;
+    g_platform.snapshot_rom   = p8_embedded_snapshot_rom;
+    g_platform.cart_extract   = p8_cart_extract;
+
+    p8_set_platform(&g_platform);
 
     p8_init(ACTIVE_FILE->path, false);
     /* Set loaded_cart for pause menu "reset cart" action */
@@ -937,6 +963,8 @@ static bool handle_pause_menu(const odroid_gamepad_state_t *j, uint32_t p8_btns,
     if (p8.next_cart_path[0] != '\0') {
         /* "reset cart" was selected — full re-init from scratch */
         p8.next_cart_path[0] = '\0';
+        lcd_clear_active_buffer();
+        lcd_clear_inactive_buffer();
         if (p8.cartdata_dirty) gw_flush_cartdata();
         if (p8.L) { lua_close(p8.L); p8.L = NULL; p8.cart_co = NULL; }
         { extern void luaH_frozen_reset(void); luaH_frozen_reset(); }
@@ -970,6 +998,11 @@ static void wait_for_any_button(void)
 static bool handle_multicart_load(const char *cart_path, int *skip_frame)
 {
     printf("P8: loading multicart: %s\n", cart_path);
+
+    /* Clear full LCD so the retro-go loading screen border doesn't
+     * remain visible behind the engine's smaller viewport. */
+    lcd_clear_active_buffer();
+    lcd_clear_inactive_buffer();
 
     if (p8.cartdata_dirty) gw_flush_cartdata();
 

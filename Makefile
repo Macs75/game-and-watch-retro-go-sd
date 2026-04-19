@@ -808,7 +808,7 @@ Core/Src/porting/pico8/p8_multicart.c
 
 PICO8_CXX_STUBS = \
 Core/Src/porting/pico8/p8_stubs.cpp \
-$(CORE_PICO8)/src/core/p8_firmware_bridge.cpp
+Core/Src/porting/pico8/p8_firmware_bridge.cpp
 
 # z8lua sources compiled as C++ (fix32.h requires C++)
 PICO8_CXX_SOURCES = \
@@ -1138,7 +1138,7 @@ $(BUILD_DIR)/$(TARGET)_extflash.bin: $(BUILD_DIR)/$(TARGET).elf | $(BUILD_DIR)
 
 $(BUILD_DIR)/$(TARGET)_intflash.bin: $(BUILD_DIR)/$(TARGET).elf | $(BUILD_DIR)
 	$(V)$(ECHO) [ BIN ] $(notdir $@)
-	$(V)$(BIN) -j .isr_vector -j .text -j .rodata -j .ARM.extab -j .preinit_array -j .init_array -j .fini_array -j .data $< $(BUILD_DIR)/$(TARGET)_intflash.bin
+	$(V)$(BIN) -j .isr_vector -j .firmware_abi -j .text -j .rodata -j .ARM.extab -j .preinit_array -j .init_array -j .fini_array -j .data $< $(BUILD_DIR)/$(TARGET)_intflash.bin
 
 $(BUILD_DIR)/$(TARGET)_intflash2.bin: $(BUILD_DIR)/$(TARGET).elf | $(BUILD_DIR)
 	$(V)$(ECHO) [ BIN ] $(notdir $@)

@@ -792,6 +792,17 @@ INCLUDE build/fceumm_mappers.ld
     . = ALIGN(4);
   } >FLASH
 
+  /* Firmware ABI table at a fixed offset from intflash start (0x400).
+     Plugins (runtime-loaded overlays like the separately-distributed
+     PICO-8 engine) resolve the absolute address at load time by reading
+     VTOR and adding GW_FIRMWARE_ABI_OFFSET. Works regardless of whether
+     the firmware runs from bank 1 (0x08000000) or bank 2 (0x08100000).
+     See Core/Inc/retro-go/gw_firmware_abi.h for the contract. */
+  .firmware_abi ORIGIN(FLASH) + 0x400 :
+  {
+    KEEP(*(.firmware_abi))
+  } >FLASH
+
   /* The program code and other data goes into FLASH */
   .text :
   {
