@@ -34,9 +34,113 @@
 #include "main_pkmini.h"
 #include "main_a2600.h"
 #include "rg_rtc.h"
+#include "gittag.h"
 #include "heap.hpp"
 #include "gw_flash.h"
 #include "gw_flash_alloc.h"
+
+#define CORE_HEADER_MAGIC_INTERNAL "CORI"
+#define CORE_HEADER_MAGIC_EXTERNAL "CORE"
+#define CORE_HEADER_MIN_SIZE 8u
+// CORE_BIN_HEADER_VERSION is defined in Makefile.common
+// and shall be incremented when the core binary format changes
+#define CORE_HEADER_VERSION ((uint16_t)(CORE_BIN_HEADER_VERSION))
+
+static uint16_t read_u16_le(const uint8_t *p)
+{
+  return (uint16_t)(p[0] | ((uint16_t)p[1] << 8));
+}
+
+static size_t load_core_bin_with_header(const char *file_path, uint8_t *dest_address)
+{
+  uint8_t fixed_header[CORE_HEADER_MIN_SIZE];
+  uint8_t *header_data = NULL;
+  bool is_internal_core = false;
+  bool is_external_core = false;
+  FILE *file = fopen(file_path, "rb");
+  if (!file) {
+    printf("CORE: failed to open '%s'\n", file_path);
+    return 0;
+  }
+
+  if (fread(fixed_header, 1, sizeof(fixed_header), file) != sizeof(fixed_header)) {
+    printf("CORE: short header in '%s'\n", file_path);
+    fclose(file);
+    return 0;
+  }
+
+  is_internal_core = (memcmp(fixed_header, CORE_HEADER_MAGIC_INTERNAL, 4) == 0);
+  is_external_core = (memcmp(fixed_header, CORE_HEADER_MAGIC_EXTERNAL, 4) == 0);
+  if (!is_internal_core && !is_external_core) {
+    printf("CORE: invalid magic in '%s'\n", file_path);
+    fclose(file);
+    return 0;
+  }
+
+  uint16_t header_version = read_u16_le(&fixed_header[4]);
+  uint16_t header_length = read_u16_le(&fixed_header[6]);
+  if (header_length > 0) {
+    header_data = (uint8_t *)malloc(header_length);
+    if (!header_data) {
+      fclose(file);
+      return 0;
+    }
+    if (fread(header_data, 1, header_length, file) != header_length) {
+      printf("CORE: truncated extended header in '%s'\n", file_path);
+      free(header_data);
+      fclose(file);
+      return 0;
+    }
+  }
+
+  if (is_internal_core) {
+    if (header_version != CORE_HEADER_VERSION) {
+      printf("CORE: unsupported internal header version %u in '%s' (expected %u)\n",
+             (unsigned)header_version, file_path, (unsigned)CORE_HEADER_VERSION);
+      free(header_data);
+      fclose(file);
+      return 0;
+    }
+
+    if (header_length < 1) {
+      printf("CORE: missing internal git tag in '%s'\n", file_path);
+      free(header_data);
+      fclose(file);
+      return 0;
+    }
+
+    uint8_t tag_len = header_data[0];
+    size_t expected_tag_len = strlen(GIT_TAG);
+    if ((uint16_t)(1u + tag_len) > header_length ||
+        tag_len != expected_tag_len ||
+        memcmp(&header_data[1], GIT_TAG, tag_len) != 0) {
+      printf("CORE: internal core git tag mismatch in '%s'\n", file_path);
+      free(header_data);
+      fclose(file);
+      return 0;
+    }
+  } else {
+    printf("CORE: external core header version %u ignored\n", (unsigned)header_version);
+    free(header_data);
+  }
+
+  uint32_t payload_offset = CORE_HEADER_MIN_SIZE + (uint32_t)header_length;
+  if (fseek(file, 0, SEEK_END) != 0) {
+    free(header_data);
+    fclose(file);
+    return 0;
+  }
+  long file_size = ftell(file);
+  if (file_size < 0 || (uint32_t)file_size < payload_offset) {
+    printf("CORE: invalid header length %u in '%s' (file too small)\n", (unsigned)header_length, file_path);
+    free(header_data);
+    fclose(file);
+    return 0;
+  }
+  free(header_data);
+  fclose(file);
+  return odroid_overlay_cache_file_in_ram_with_offset(file_path, dest_address, payload_offset);
+}
 
 
 /* Exposed for ITCM sentinel patching (main_pico8.c) */
@@ -1018,7 +1122,7 @@ void emulator_start(retro_emulator_file_t *file, bool load_state, bool start_pau
 
     if((strcmp(system_name, "Nintendo Gameboy") == 0) ||
        (strcmp(system_name, "Nintendo Gameboy Color") == 0)) {
-        if (odroid_overlay_cache_file_in_ram("/cores/tgb.bin", (uint8_t *)&__RAM_EMU_START__)) {
+        if (load_core_bin_with_header("/cores/tgb.bin", (uint8_t *)&__RAM_EMU_START__)) {
             memset(&_OVERLAY_TGB_BSS_START, 0x0, (size_t)&_OVERLAY_TGB_BSS_SIZE);
             SCB_CleanDCache_by_Addr((uint32_t *)&__RAM_EMU_START__, (size_t)&_OVERLAY_TGB_SIZE);
 
@@ -1029,13 +1133,13 @@ void emulator_start(retro_emulator_file_t *file, bool load_state, bool start_pau
         }
     } else if(strcmp(system_name, "Nintendo Entertainment System") == 0) {
 #if FORCE_NOFRENDO == 1
-        if (odroid_overlay_cache_file_in_ram("/cores/nes.bin", (uint8_t *)&__RAM_EMU_START__)) {
+        if (load_core_bin_with_header("/cores/nes.bin", (uint8_t *)&__RAM_EMU_START__)) {
             memset(&_OVERLAY_NES_BSS_START, 0x0, (size_t)&_OVERLAY_NES_BSS_SIZE);
             SCB_CleanDCache_by_Addr((uint32_t *)&__RAM_EMU_START__, (size_t)&_OVERLAY_NES_SIZE);
             app_main_nes(load_state, start_paused, save_slot);
         }
 #else
-        if (odroid_overlay_cache_file_in_ram("/cores/nes_fceu.bin", (uint8_t *)&__RAM_FCEUMM_START__)) {
+        if (load_core_bin_with_header("/cores/nes_fceu.bin", (uint8_t *)&__RAM_FCEUMM_START__)) {
             memset(&_OVERLAY_NES_FCEU_BSS_START, 0x0, (size_t)&_OVERLAY_NES_FCEU_BSS_SIZE);
             SCB_CleanDCache_by_Addr((uint32_t *)&__RAM_EMU_START__, (size_t)&_OVERLAY_NES_FCEU_SIZE);
             app_main_nes_fceu(load_state, start_paused, save_slot);
@@ -1045,7 +1149,7 @@ void emulator_start(retro_emulator_file_t *file, bool load_state, bool start_pau
               strcmp(system_name, "Sega Game Gear") == 0     ||
               strcmp(system_name, "Sega SG-1000") == 0       ||
               strcmp(system_name, "Colecovision") == 0 ) {
-        if (odroid_overlay_cache_file_in_ram("/cores/sms.bin", (uint8_t *)&__RAM_EMU_START__)) {
+        if (load_core_bin_with_header("/cores/sms.bin", (uint8_t *)&__RAM_EMU_START__)) {
             memset(&_OVERLAY_SMS_BSS_START, 0x0, (size_t)&_OVERLAY_SMS_BSS_SIZE);
             SCB_CleanDCache_by_Addr((uint32_t *)&__RAM_EMU_START__, (size_t)&_OVERLAY_SMS_SIZE);
             if (! strcmp(system_name, "Colecovision")) app_main_smsplusgx(load_state, start_paused, save_slot, SMSPLUSGX_ENGINE_COLECO);
@@ -1054,37 +1158,37 @@ void emulator_start(retro_emulator_file_t *file, bool load_state, bool start_pau
             else                                            app_main_smsplusgx(load_state, start_paused, save_slot, SMSPLUSGX_ENGINE_OTHERS);
         }
     } else if(strcmp(system_name, "Game & Watch") == 0 ) {
-        if (odroid_overlay_cache_file_in_ram("/cores/gw.bin", (uint8_t *)&__RAM_EMU_START__)) {
+        if (load_core_bin_with_header("/cores/gw.bin", (uint8_t *)&__RAM_EMU_START__)) {
             memset(&_OVERLAY_GW_BSS_START, 0x0, (size_t)&_OVERLAY_GW_BSS_SIZE);
             SCB_CleanDCache_by_Addr((uint32_t *)&__RAM_EMU_START__, (size_t)&_OVERLAY_GW_SIZE);
             app_main_gw(load_state, save_slot);
         }
     } else if(strcmp(system_name, "PC Engine") == 0) {
-      if (odroid_overlay_cache_file_in_ram("/cores/pce.bin", (uint8_t *)&__RAM_EMU_START__)) {
+      if (load_core_bin_with_header("/cores/pce.bin", (uint8_t *)&__RAM_EMU_START__)) {
         memset(&_OVERLAY_PCE_BSS_START, 0x0, (size_t)&_OVERLAY_PCE_BSS_SIZE);
         SCB_CleanDCache_by_Addr((uint32_t *)&__RAM_EMU_START__, (size_t)&_OVERLAY_PCE_SIZE);
         app_main_pce(load_state, start_paused, save_slot);
       }
     } else if(strcmp(system_name, "MSX") == 0) {
-      if (odroid_overlay_cache_file_in_ram("/cores/msx.bin", (uint8_t *)&__RAM_EMU_START__)) {
+      if (load_core_bin_with_header("/cores/msx.bin", (uint8_t *)&__RAM_EMU_START__)) {
         memset(&_OVERLAY_MSX_BSS_START, 0x0, (size_t)&_OVERLAY_MSX_BSS_SIZE);
         SCB_CleanDCache_by_Addr((uint32_t *)&__RAM_EMU_START__, (size_t)&_OVERLAY_MSX_SIZE);
         app_main_msx(load_state, start_paused, save_slot);
       }
     } else if(strcmp(system_name, "Watara Supervision") == 0) {
-      if (odroid_overlay_cache_file_in_ram("/cores/wsv.bin", (uint8_t *)&__RAM_EMU_START__)) {
+      if (load_core_bin_with_header("/cores/wsv.bin", (uint8_t *)&__RAM_EMU_START__)) {
         memset(&_OVERLAY_WSV_BSS_START, 0x0, (size_t)&_OVERLAY_WSV_BSS_SIZE);
         SCB_CleanDCache_by_Addr((uint32_t *)&__RAM_EMU_START__, (size_t)&_OVERLAY_WSV_SIZE);
         app_main_wsv(load_state, start_paused, save_slot);
       }
     } else if(strcmp(system_name, "Sega Genesis") == 0)  {
-      if (odroid_overlay_cache_file_in_ram("/cores/md.bin", (uint8_t *)&__RAM_EMU_START__)) {
+      if (load_core_bin_with_header("/cores/md.bin", (uint8_t *)&__RAM_EMU_START__)) {
         memset(&_OVERLAY_MD_BSS_START, 0x0, (size_t)&_OVERLAY_MD_BSS_SIZE);
         SCB_CleanDCache_by_Addr((uint32_t *)&__RAM_EMU_START__, (size_t)&_OVERLAY_MD_SIZE);
         app_main_gwenesis(load_state, start_paused, save_slot);
       }
     } else if(strcmp(system_name, "Atari 2600") == 0) {
-      if (odroid_overlay_cache_file_in_ram("/cores/a2600.bin", (uint8_t *)&__RAM_EMU_START__)) {
+      if (load_core_bin_with_header("/cores/a2600.bin", (uint8_t *)&__RAM_EMU_START__)) {
         memset(&_OVERLAY_A2600_BSS_START, 0x0, (size_t)&_OVERLAY_A2600_BSS_SIZE);
         SCB_CleanDCache_by_Addr((uint32_t *)&__RAM_EMU_START__, (size_t)&_OVERLAY_A2600_SIZE);
 
@@ -1094,20 +1198,20 @@ void emulator_start(retro_emulator_file_t *file, bool load_state, bool start_pau
         app_main_a2600(load_state, start_paused, save_slot);
       }
     } else if(strcmp(system_name, "Atari 7800") == 0)  {
-      if (odroid_overlay_cache_file_in_ram("/cores/a7800.bin", (uint8_t *)&__RAM_EMU_START__)) {
+      if (load_core_bin_with_header("/cores/a7800.bin", (uint8_t *)&__RAM_EMU_START__)) {
         memset(&_OVERLAY_A7800_BSS_START, 0x0, (size_t)&_OVERLAY_A7800_BSS_SIZE);
         SCB_CleanDCache_by_Addr((uint32_t *)&__RAM_EMU_START__, (size_t)&_OVERLAY_A7800_SIZE);
         app_main_a7800(load_state, start_paused, save_slot);
       }
     } else if(strcmp(system_name, "Amstrad CPC") == 0)  {
-      if (odroid_overlay_cache_file_in_ram("/cores/amstrad.bin", (uint8_t *)&__RAM_EMU_START__)) {
+      if (load_core_bin_with_header("/cores/amstrad.bin", (uint8_t *)&__RAM_EMU_START__)) {
         memset(&_OVERLAY_AMSTRAD_BSS_START, 0x0, (size_t)&_OVERLAY_AMSTRAD_BSS_SIZE);
         SCB_CleanDCache_by_Addr((uint32_t *)&__RAM_EMU_START__, (size_t)&_OVERLAY_AMSTRAD_SIZE);
         app_main_amstrad(load_state, start_paused, save_slot);
       }
     } else if(strcmp(system_name, "Philips Vectrex") == 0)  {
 #ifdef ENABLE_EMULATOR_VIDEOPAC
-      if (odroid_overlay_cache_file_in_ram("/cores/videopac.bin", (uint8_t *)&__RAM_EMU_START__)) {
+      if (load_core_bin_with_header("/cores/videopac.bin", (uint8_t *)&__RAM_EMU_START__)) {
         memset(&_OVERLAY_VIDEOPAC_BSS_START, 0x0, (size_t)&_OVERLAY_VIDEOPAC_BSS_SIZE);
         SCB_CleanDCache_by_Addr((uint32_t *)&__RAM_EMU_START__, (size_t)&_OVERLAY_VIDEOPAC_SIZE);
         app_main_videopac(load_state, start_paused, save_slot);
@@ -1142,13 +1246,13 @@ void emulator_start(retro_emulator_file_t *file, bool load_state, bool start_pau
 #endif
       }
     } else if(strcmp(system_name, "Tamagotchi") == 0) {
-      if (odroid_overlay_cache_file_in_ram("/cores/tama.bin", (uint8_t *)&__RAM_EMU_START__)) {
+      if (load_core_bin_with_header("/cores/tama.bin", (uint8_t *)&__RAM_EMU_START__)) {
         memset(&_OVERLAY_TAMA_BSS_START, 0x0, (size_t)&_OVERLAY_TAMA_BSS_SIZE);
         SCB_CleanDCache_by_Addr((uint32_t *)&__RAM_EMU_START__, (size_t)&_OVERLAY_TAMA_SIZE);
         app_main_tama(load_state, start_paused, save_slot);
       }
     } else if(strcmp(system_name, "Pokemon Mini") == 0) {
-      if (odroid_overlay_cache_file_in_ram("/cores/pkmini.bin", (uint8_t *)&__RAM_EMU_START__)) {
+      if (load_core_bin_with_header("/cores/pkmini.bin", (uint8_t *)&__RAM_EMU_START__)) {
         memset(&_OVERLAY_PKMINI_BSS_START, 0x0, (size_t)&_OVERLAY_PKMINI_BSS_SIZE);
         SCB_CleanDCache_by_Addr((uint32_t *)&__RAM_EMU_START__, (size_t)&_OVERLAY_PKMINI_SIZE);
         app_main_pkmini(load_state, start_paused, save_slot);
@@ -1177,7 +1281,7 @@ void emulator_start(retro_emulator_file_t *file, bool load_state, bool start_pau
       ram_start = 0;
       size_t pico8_bin_size = 0;
       if (pico8_code_addr &&
-          (pico8_bin_size = odroid_overlay_cache_file_in_ram("/cores/pico8.bin", (uint8_t *)&__RAM_EMU_START__))) {
+          (pico8_bin_size = load_core_bin_with_header("/cores/pico8.bin", (uint8_t *)&__RAM_EMU_START__))) {
         /* Zero BSS: the separately-distributed engine binary has a much
          * larger BSS (~40 KB) than the GPL stub. We don't know the exact
          * BSS size, so zero from end-of-loaded-data to a generous upper
@@ -1210,7 +1314,7 @@ void emulator_start(retro_emulator_file_t *file, bool load_state, bool start_pau
          * linker veneer — the loaded binary may have app_main_pico8 at a
          * different offset than the GPL stub's link-time layout. */
         ((void (*)(uint8_t, uint8_t, int8_t))((uintptr_t)__RAM_EMU_START__ | 1))(load_state, start_paused, save_slot);
-      } else if ((pico8_bin_size = odroid_overlay_cache_file_in_ram("/cores/pico8_stub.bin", (uint8_t *)&__RAM_EMU_START__))) {
+      } else if ((pico8_bin_size = load_core_bin_with_header("/cores/pico8_stub.bin", (uint8_t *)&__RAM_EMU_START__))) {
         /* Last resort: GPL stub (shows "engine not installed" message) */
         uint8_t *bss_start = (uint8_t *)&__RAM_EMU_START__ + pico8_bin_size;
         uint8_t *bss_end   = bss_start + 256 * 1024;

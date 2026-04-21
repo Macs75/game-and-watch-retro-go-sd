@@ -145,6 +145,10 @@ endif
 
 PYTHON3 ?= /usr/bin/env python3
 
+# Version of header for cores, it shall be incremented if the header
+# format is changed and is breaking compatibility with previous format.
+CORE_BIN_HEADER_VERSION ?= 0
+
 #######################################
 # paths
 #######################################
@@ -434,6 +438,7 @@ AS_DEFS +=
 # C defines
 C_DEFS +=  \
 -D_GNU_SOURCE \
+-DCORE_BIN_HEADER_VERSION=$(CORE_BIN_HEADER_VERSION) \
 -DINTFLASH_BANK=$(INTFLASH_BANK) \
 -DINTFLASH_ADDRESS=$(INTFLASH_ADDRESS) \
 -DBIG_BANK=$(BIG_BANK) \
@@ -1050,6 +1055,25 @@ MAPPERS_DIR := $(CORES_DIR)/mappers
 HOMEBREWS_FOLDER := $(SD_FOLDER)/roms/homebrew
 RELEASE_FOLDER := release
 
+define EXTRACT_CORE_BIN_WITH_HEADER
+	@tmp_file="$2.tmp"; \
+	version_lo=$$(( $(CORE_BIN_HEADER_VERSION) & 0xFF )); \
+	version_hi=$$(( ($(CORE_BIN_HEADER_VERSION) >> 8) & 0xFF )); \
+	git_tag=$$(sed -n 's/^#define GIT_TAG "\(.*\)"/\1/p' Core/Inc/gittag.h); \
+	tag_len=$${#git_tag}; \
+	if [ $$tag_len -gt 255 ]; then echo "CORE: internal git tag too long ($$tag_len > 255)"; rm -f "$$tmp_file"; exit 1; fi; \
+	header_len=$$((1 + tag_len)); \
+	header_len_lo=$$(( header_len & 0xFF )); \
+	header_len_hi=$$(( (header_len >> 8) & 0xFF )); \
+	$(CP) -O binary --only-section=$1 $(BUILD_DIR)/$(TARGET).elf "$$tmp_file" && \
+	{ printf 'CORI'; \
+	  printf "\\x$$(printf '%02x' $$version_lo)\\x$$(printf '%02x' $$version_hi)\\x$$(printf '%02x' $$header_len_lo)\\x$$(printf '%02x' $$header_len_hi)"; \
+	  printf "\\x$$(printf '%02x' $$tag_len)"; \
+	  printf '%s' "$$git_tag"; \
+	  cat "$$tmp_file"; } > "$2" && \
+	rm -f "$$tmp_file"
+endef
+
 $(MAPPERS_DIR)/mapper_%.bin: $(BUILD_DIR)/$(TARGET).elf
 	@$(CP) -O binary --only-section=.overlay_nes_fceu_$* $< $@
 
@@ -1093,22 +1117,22 @@ create_sd_data: create_sd_folders prepare_msx_bios_files $(MAPPER_BINS) $(BUILD_
 	@$(PYTHON3) tools/gen_fceu_palettes_table.py $(SD_FOLDER)/bios/nes/palettes.bin
 	@$(PYTHON3) external/stella2014-go/convert_defprops.py external/stella2014-go/stella/src/emucore/DefProps.hxx $(CORES_DIR)/a2600_defprops.bin
 	@$(PYTHON3) external/blueMSX-go/create_compact_database_file.py external/blueMSX-go/system/bluemsx/Databases/msxromdb.xml $(SD_FOLDER)/bios/msx/msxromdb.bin
-	@$(CP) -O binary --only-section=.overlay_nes $(BUILD_DIR)/$(TARGET).elf $(CORES_DIR)/nes.bin
-	@$(CP) -O binary --only-section=.overlay_nes_fceu $(BUILD_DIR)/$(TARGET).elf $(CORES_DIR)/nes_fceu.bin
-	@$(CP) -O binary --only-section=.overlay_tgb $(BUILD_DIR)/$(TARGET).elf $(CORES_DIR)/tgb.bin
-	@$(CP) -O binary --only-section=.overlay_sms $(BUILD_DIR)/$(TARGET).elf $(CORES_DIR)/sms.bin
-	@$(CP) -O binary --only-section=.overlay_pce $(BUILD_DIR)/$(TARGET).elf $(CORES_DIR)/pce.bin
-	@$(CP) -O binary --only-section=.overlay_msx $(BUILD_DIR)/$(TARGET).elf $(CORES_DIR)/msx.bin
-	@$(CP) -O binary --only-section=.overlay_wsv $(BUILD_DIR)/$(TARGET).elf $(CORES_DIR)/wsv.bin
-	@$(CP) -O binary --only-section=.overlay_gw $(BUILD_DIR)/$(TARGET).elf $(CORES_DIR)/gw.bin
-	@$(CP) -O binary --only-section=.overlay_md $(BUILD_DIR)/$(TARGET).elf $(CORES_DIR)/md.bin
-	@$(CP) -O binary --only-section=.overlay_a2600 $(BUILD_DIR)/$(TARGET).elf $(CORES_DIR)/a2600.bin
-	@$(CP) -O binary --only-section=.overlay_a7800 $(BUILD_DIR)/$(TARGET).elf $(CORES_DIR)/a7800.bin
-	@$(CP) -O binary --only-section=.overlay_amstrad $(BUILD_DIR)/$(TARGET).elf $(CORES_DIR)/amstrad.bin
-	@$(CP) -O binary --only-section=.overlay_videopac $(BUILD_DIR)/$(TARGET).elf $(CORES_DIR)/videopac.bin
-	@$(CP) -O binary --only-section=.overlay_tama $(BUILD_DIR)/$(TARGET).elf $(CORES_DIR)/tama.bin
-	@$(CP) -O binary --only-section=.overlay_pkmini $(BUILD_DIR)/$(TARGET).elf $(CORES_DIR)/pkmini.bin
-	@$(CP) -O binary --only-section=.overlay_pico8 $(BUILD_DIR)/$(TARGET).elf $(CORES_DIR)/pico8_stub.bin
+	$(call EXTRACT_CORE_BIN_WITH_HEADER,.overlay_nes,$(CORES_DIR)/nes.bin)
+	$(call EXTRACT_CORE_BIN_WITH_HEADER,.overlay_nes_fceu,$(CORES_DIR)/nes_fceu.bin)
+	$(call EXTRACT_CORE_BIN_WITH_HEADER,.overlay_tgb,$(CORES_DIR)/tgb.bin)
+	$(call EXTRACT_CORE_BIN_WITH_HEADER,.overlay_sms,$(CORES_DIR)/sms.bin)
+	$(call EXTRACT_CORE_BIN_WITH_HEADER,.overlay_pce,$(CORES_DIR)/pce.bin)
+	$(call EXTRACT_CORE_BIN_WITH_HEADER,.overlay_msx,$(CORES_DIR)/msx.bin)
+	$(call EXTRACT_CORE_BIN_WITH_HEADER,.overlay_wsv,$(CORES_DIR)/wsv.bin)
+	$(call EXTRACT_CORE_BIN_WITH_HEADER,.overlay_gw,$(CORES_DIR)/gw.bin)
+	$(call EXTRACT_CORE_BIN_WITH_HEADER,.overlay_md,$(CORES_DIR)/md.bin)
+	$(call EXTRACT_CORE_BIN_WITH_HEADER,.overlay_a2600,$(CORES_DIR)/a2600.bin)
+	$(call EXTRACT_CORE_BIN_WITH_HEADER,.overlay_a7800,$(CORES_DIR)/a7800.bin)
+	$(call EXTRACT_CORE_BIN_WITH_HEADER,.overlay_amstrad,$(CORES_DIR)/amstrad.bin)
+	$(call EXTRACT_CORE_BIN_WITH_HEADER,.overlay_videopac,$(CORES_DIR)/videopac.bin)
+	$(call EXTRACT_CORE_BIN_WITH_HEADER,.overlay_tama,$(CORES_DIR)/tama.bin)
+	$(call EXTRACT_CORE_BIN_WITH_HEADER,.overlay_pkmini,$(CORES_DIR)/pkmini.bin)
+	$(call EXTRACT_CORE_BIN_WITH_HEADER,.overlay_pico8,$(CORES_DIR)/pico8_stub.bin)
 	@$(CP) -O binary --only-section=.overlay_celeste $(BUILD_DIR)/$(TARGET).elf $(HOMEBREWS_FOLDER)/celeste.bin
 	@$(CP) -O binary --only-section=.overlay_zelda3 $(BUILD_DIR)/$(TARGET).elf "$(HOMEBREWS_FOLDER)/Zelda 3.bin"
 	@$(CP) -O binary --only-section=.rodata_zelda3 $(BUILD_DIR)/$(TARGET).elf "$(HOMEBREWS_FOLDER)/zelda3.ro"
