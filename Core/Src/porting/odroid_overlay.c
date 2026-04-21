@@ -1718,6 +1718,11 @@ uint8_t *odroid_overlay_cache_file_in_flash(const char *file_path, uint32_t *fil
 
 size_t odroid_overlay_cache_file_in_ram(const char *file_path, uint8_t *dest_address)
 {
+    return odroid_overlay_cache_file_in_ram_with_offset(file_path, dest_address, 0);
+}
+
+size_t odroid_overlay_cache_file_in_ram_with_offset(const char *file_path, uint8_t *dest_address, uint32_t offset)
+{
     void progress_cb(uint32_t total_size, uint32_t total_processed, uint8_t progress)
     {
         // Hacky debounce to handle multiple cached files in a row without transparency artifacts
@@ -1742,7 +1747,7 @@ size_t odroid_overlay_cache_file_in_ram(const char *file_path, uint8_t *dest_add
         lcd_swap();
     }
 
-    return rg_storage_copy_file_to_ram((char *)file_path, dest_address, progress_cb);
+    return rg_storage_copy_file_to_ram_with_offset((char *)file_path, dest_address, offset, progress_cb);
 }
 
 #endif

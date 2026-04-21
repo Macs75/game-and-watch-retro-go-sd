@@ -211,8 +211,7 @@ bool rg_storage_scandir(const char *path, rg_scandir_cb_t *callback, void *arg, 
     return true;
 }
 
-/* copy file content into ram */
-size_t rg_storage_copy_file_to_ram(char *file_path, uint8_t *ram_dest, file_progress_cb_t file_progress_cb) {
+size_t rg_storage_copy_file_to_ram_with_offset(char *file_path, uint8_t *ram_dest, uint32_t offset, file_progress_cb_t file_progress_cb) {
     FILE *file;
     size_t bytes_read;
     uint32_t total_written;
@@ -222,9 +221,20 @@ size_t rg_storage_copy_file_to_ram(char *file_path, uint8_t *ram_dest, file_prog
         return 0;
     } 
 
-    fseek(file, 0, SEEK_END);
-    uint32_t total_size = ftell(file);
-    fseek(file, 0, SEEK_SET);
+    if (fseek(file, 0, SEEK_END) != 0) {
+        fclose(file);
+        return 0;
+    }
+    long file_size_l = ftell(file);
+    if (file_size_l < 0 || (uint32_t)file_size_l < offset) {
+        fclose(file);
+        return 0;
+    }
+    uint32_t total_size = (uint32_t)file_size_l - offset;
+    if (fseek(file, (long)offset, SEEK_SET) != 0) {
+        fclose(file);
+        return 0;
+    }
 
     total_written = 0;
     if (file_progress_cb) {
@@ -242,6 +252,11 @@ size_t rg_storage_copy_file_to_ram(char *file_path, uint8_t *ram_dest, file_prog
     fclose(file);
 
     return total_written;
+}
+
+/* copy file content into ram */
+size_t rg_storage_copy_file_to_ram(char *file_path, uint8_t *ram_dest, file_progress_cb_t file_progress_cb) {
+    return rg_storage_copy_file_to_ram_with_offset(file_path, ram_dest, 0, file_progress_cb);
 }
 
 bool rg_storage_get_adjacent_files(const char *path, char *prev_path, char *next_path) {
