@@ -29,16 +29,16 @@ const lang_t lang_zh_cn LANG_DATA = {
     .s_LangName = "S_Chinese",
     
     // Core\Src\porting\nes-fceu\main_nes_fceu.c ===========================
-    .s_Crop_Vertical_Overscan = "Crop Vertical Overscan",
-    .s_Crop_Horizontal_Overscan = "Crop Horizontal Overscan",
-    .s_Disable_Sprite_Limit = "Disable sprite limit",
-    .s_Reset = "Reset",
-    .s_NES_CPU_OC = "NES CPU Overclocking",
-    .s_NES_Eject_Insert_FDS = "Eject/Insert Disk",
-    .s_NES_Eject_FDS = "Eject Disk",
-    .s_NES_Insert_FDS = "Insert Disk",
-    .s_NES_Swap_Side_FDS = "Swap FDisk side",
-    .s_NES_FDS_Side_Format = "Disk %d Side %s",
+    .s_Crop_Vertical_Overscan = "垂直过扫描裁切",
+    .s_Crop_Horizontal_Overscan = "水平过扫描裁切",
+    .s_Disable_Sprite_Limit = "禁用精灵限制",
+    .s_Reset = "重置",
+    .s_NES_CPU_OC = "超频",
+    .s_NES_Eject_Insert_FDS = "弹出插入磁盘",
+    .s_NES_Eject_FDS = "弹出磁盘",
+    .s_NES_Insert_FDS = "插入磁盘",
+    .s_NES_Swap_Side_FDS = "交换磁盘面",
+    .s_NES_FDS_Side_Format = "磁盘 %d 面 %s",
     //=====================================================================
 
     // Core\Src\porting\gb\main_gb.c =======================================
@@ -189,11 +189,11 @@ const lang_t lang_zh_cn LANG_DATA = {
     .s_Theme_sList = "简单列表",
     .s_Theme_CoverV = "垂直滚动", // vertical
     .s_Theme_CoverH = "水平滚动", // horizontal
-    .s_Theme_CoverLightV = "垂直欢滚",
-    .s_Theme_CoverLightH = "水平欢滚",
+    .s_Theme_CoverLightV = "垂直滚动_Light",
+    .s_Theme_CoverLightH = "水平滚动_Light",
     .s_Caching_Game = "正在缓存游戏",
-    .s_Loading_Banner = "Loading",
-    .s_Pause_Banner = "PAUSE",
+    .s_Loading_Banner = "加载中...",
+    .s_Pause_Banner = "暂停",
     //=====================================================================
 
     // Core\Src\retro-go\rg_emulators.c ====================================
@@ -202,8 +202,8 @@ const lang_t lang_zh_cn LANG_DATA = {
     .s_Type = "类型：",
     .s_Size = "大小：",
     .s_Close = "× 关闭",
-    .s_Delete_Rom_File = "Delete ROM",
-    .s_Delete_Rom_File_Confirm = "Delete '%s'?",
+    .s_Delete_Rom_File = "删除游戏",
+    .s_Delete_Rom_File_Confirm = "删除游戏 '%s'?",
     .s_GameProp = "游戏文件属性",
     .s_Resume_game = "＞ 继续游戏",
     .s_New_game = "◇ 开始游戏",
@@ -211,8 +211,8 @@ const lang_t lang_zh_cn LANG_DATA = {
     .s_Add_favorite = "★ 添加收藏",
     .s_Delete_save = "□ 删除进度",
     .s_Confirm_del_save = "您确认要删除已保存的游戏进度？",
-    .s_Confirm_del_sram = "Delete SRAM file?",
-    .s_Free_space_alert = "Not enough free space for a new save, please delete some.",
+    .s_Confirm_del_sram = "删除SRAM文件?",
+    .s_Free_space_alert = "没有足够的空间保存新文件，请删除一些.",
 #if CHEAT_CODES == 1
     .s_Cheat_Codes = "＆ 金手指码",
     .s_Cheat_Codes_Title = "金手指",
@@ -250,11 +250,11 @@ const lang_t lang_zh_cn LANG_DATA = {
     .s_Flash_CR = "存储配置",
     .s_Flash_Size = "Flash Size",
     .s_Smallest_erase = "最小单位",
-    .s_DBGMCU_IDCODE = "DBGMCU IDCODE",
-    .s_DBGMCU_CR = "DBGMCU CR",
-    .s_DBGMCU_clock = "DBGMCU Clock",
-    .s_DBGMCU_clock_on = "On",
-    .s_DBGMCU_clock_auto = "Auto",
+    .s_DBGMCU_IDCODE = "调试 MCU 器件 ID 码寄存器",
+    .s_DBGMCU_CR = "调试 MCU 配置寄存器",
+    .s_DBGMCU_clock = "调试 MCU 时钟寄存器",
+    .s_DBGMCU_clock_on = "开启",
+    .s_DBGMCU_clock_auto = "自动",
     //.s_Close                  = "Close",
     .s_Debug_Title = "调试选项",
     .s_Idle_power_off = "待机",
