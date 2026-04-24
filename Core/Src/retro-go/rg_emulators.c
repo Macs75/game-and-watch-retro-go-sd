@@ -459,8 +459,15 @@ static void emulator_fill_tab_list(tab_t *tab, retro_emulator_t *emu)
     const int parent_row = in_subfolder ? 1 : 0;
     const int list_len = n + parent_row;
 
-    if (n > 0)
+    if (n > 0) {
         qsort(emu->roms.files, (size_t)n, sizeof(retro_emulator_file_t), rom_entries_cmp);
+        // Recalculate ext pointers after sort (they point into .path which moved)
+        for (int i = 0; i < n; i++) {
+            retro_emulator_file_t *f = &emu->roms.files[i];
+            if (f->ext != NULL)
+                f->ext = (char *)get_extension(f->path);
+        }
+    }
 
     if (in_subfolder)
         snprintf(tab->status, sizeof(tab->status), "%s", emu->browse_subpath);
