@@ -25,7 +25,8 @@ If you are looking for the mod without SD Card (Flash mod only), check https://g
 - [Controls](#controls)
   - [Button Mappings](#button-mappings)
   - [Macros](#macros)
-- [Troubleshooting / FAQ](#troubleshooting--faq)
+- [Troubleshooting](#troubleshooting)
+- [FAQ](#faq)
 - [Cheat Codes](#cheat-codes)
   - [Cheat codes on NES System](#cheat-codes-on-nes-system)
   - [Cheat codes on GB System](#cheat-codes-on-gb-system)
@@ -40,6 +41,7 @@ If you are looking for the mod without SD Card (Flash mod only), check https://g
     - [Alternate languages](#alternate-languages)
   - [Super Mario World](#super-mario-world)
   - [Celeste Classic](#celeste-classic)
+- [Pico-8](#pico-8)
 - [Developer info](#developer-info)
   - [Build and flash using Docker](#build-and-flash-using-docker)
 - [Discord, support and discussion](#discord-support-and-discussion)
@@ -140,6 +142,9 @@ To install the hardware mod, you need:
 
       ![](assets/firmware_update.png)
    - You can start filling the created folders on your sd card with uncompressed roms (in /roms/gb, roms/gbc, roms/nes, ...)
+  
+6. **Pico-8**
+   - Requires a separate package installation, please refer to the [Pico-8](#pico-8) section for more details
 
 ### Cutting the shell for SD Card slot
    To help to properly cut the shell, facelesstech designed some drill jig, they can be found [here](https://www.printables.com/model/1269910-zelda-game-and-watch-sd-card-drill-jig/files)
@@ -215,6 +220,25 @@ The script automatically resizes images to fit within 186x100 pixels while maint
 
 The `.img` files have to be stored in the /covers folder of your sd card : for the game `/roms/msx/Aleste.rom`, the cover file should be `/covers/msx/Aleste.img`.
 
+### Pico-8 Cover Art  Generator ( pico8covers.py ) 
+
+Extract PICO-8 cart labels and generate G&W cover art (.img JPEG files).
+
+Reads .p8 (text) or .p8.png (PNG) carts, extracts the 128x128 label,
+renders it with the PICO-8 palette, and saves as a JPEG cover.
+
+#### Usage:
+```bash
+  # Single cart:
+  python3 pico8covers.py --cart celeste.p8 --output covers/pico8/celeste.img
+
+  # All carts in a directory:
+  python3 pico8covers.py --src roms/pico8 --dst covers/pico8
+
+  # Custom size/quality:
+  python3 pico8covers.py --src roms/pico8 --dst covers/pico8 --width 128 --jpg_quality 90
+```
+
 ## Supported Systems
 
 ### Emulators
@@ -226,6 +250,7 @@ The `.img` files have to be stored in the /covers folder of your sd card : for t
 - Game & Watch / LCD Games
 - MSX1/2/2+
 - Nintendo Entertainment System
+- Pico-8
 - PC Engine / TurboGrafx-16
 - Pokémon Mini
 - Sega Game Gear
@@ -240,7 +265,7 @@ The `.img` files have to be stored in the /covers folder of your sd card : for t
 - Super Mario World
 
 ### Homebrew Ports
-- Celeste Classic
+- Celeste Classic 
 
 ## Controls
 
@@ -512,6 +537,41 @@ Some features can be configured with flags:
 ### Celeste Classic
 
 This is a port of the Pico-8 version of Celeste Classic. Not a Pico-8 emulator.
+
+## Pico-8
+
+An original implementation of the [PICO-8](https://www.lexaloffle.com/pico-8.php) fantasy console engine for Game & Watch hardware, developed by [macs75](https://github.com/Macs75). The engine core is written from scratch in C/C++ and tailored to the STM32H7B0's tight memory budget, while a modified version of [Z8lua](https://github.com/samhocevar/z8lua) by Sam Hocevar serves as the Lua interpreter — providing the 16.16 fixed-point math and PICO-8 dialect extensions that real cartridges expect.
+
+### Compatibility and performance
+
+The G&W hardware (STM32H7B0VBT6, 1.4 MB SRAM) is significantly more constrained than a desktop PICO-8 host, so behavior varies between cartridges:
+
+- Most simple and mid-complexity carts run at full 30/60 FPS.
+- More demanding carts may drop frames, especially those with heavy per-frame Lua workloads or large draw call counts.
+- A small number of carts will exceed the available memory budget and fail to load.
+
+**Enabling overclock in the retro-go settings is strongly recommended** — it noticeably improves frame pacing and broadens the set of carts that run at full speed.
+
+### Installation
+
+The PICO-8 binaries are **not bundled** with the retro-go G&W firmware and must be installed separately.
+
+1. Download the latest release from the [pico8_gnw_distro releases page](https://github.com/Macs75/pico8_gnw_distro/releases).
+2. Unzip the archive at the **root** of your SD card.
+3. Three files will be placed in the `cores/` directory:
+   - `pico8.bin` — main engine binary
+   - `pico8.ro` — read-only data segment
+   - `pico8_itcm.bin` — performance-critical code loaded into ITCM RAM
+
+Once installed, PICO-8 carts placed in the appropriate roms folder will be picked up by the retro-go launcher.
+
+### Loading carts
+
+Place `.p8` or `.p8.png` cartridge files in your SD card's PICO-8 roms directory and select them from the retro-go menu like any other system.
+
+### Covers 
+
+If you want to have the official carts covers use the specific python toolpico8covers.py. More details in the [Tools](#tools) section.
 
 ## Developer info
 
