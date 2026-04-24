@@ -3,7 +3,7 @@
 #endif
 #if INCLUDED_PT_PT==1
 //#include "rg_i18n_lang.h"
-// Stand Portuguese
+// European Portuguese
 
 
 int pt_pt_fmt_Title_Date_Format(char *outstr, const char *datefmt, uint16_t day, uint16_t month, const char *weekday, uint16_t hour, uint16_t minutes, uint16_t seconds)
@@ -30,7 +30,7 @@ const lang_t lang_pt_pt LANG_DATA = {
     .s_Crop_Vertical_Overscan = "Cortar Overscan Vertical",
     .s_Crop_Horizontal_Overscan = "Cortar Overscan Horizontal",
     .s_Disable_Sprite_Limit = "Desativar o limite de sprites",
-    .s_Reset = "Reset",
+    .s_Reset = "Reiniciar",
     .s_NES_CPU_OC = "NES CPU Overclocking",
     .s_NES_Eject_Insert_FDS = "Ejetar/Inserir Disco",
     .s_NES_Eject_FDS = "Ejetar Disco",
@@ -52,7 +52,7 @@ const lang_t lang_pt_pt LANG_DATA = {
     .s_pkmini_LCD_Filter = "Filtro LCD",
     .s_pkmini_LCD_Mode = "Modo LCD",
     .s_pkmini_Piezo_Filter = "Filtro Piezo",
-    .s_pkmini_Low_Pass_Filter = "Filtro Passa-Baixa",
+    .s_pkmini_Low_Pass_Filter = "Filtro Passa-Baixo",
     // PokeMini palette names
     .s_pkmini_palette_Default = "Predefinido",
     .s_pkmini_palette_Old = "Antigo",
@@ -186,9 +186,9 @@ const lang_t lang_pt_pt LANG_DATA = {
     .s_Theme_CoverH = "Deslizante H",
     .s_Theme_CoverLightV = "Encadeado V",
     .s_Theme_CoverLightH = "Encadeado H",
-    .s_Caching_Game = "Armazenando em cache o jogo",
-    .s_Loading_Banner = "Loading",
-    .s_Pause_Banner = "PAUSE",
+    .s_Caching_Game = "Armazenando em cache",
+    .s_Loading_Banner = "Carregando",
+    .s_Pause_Banner = "PAUSA",
     //=====================================================================
 
     // Core\Src\retro-go\rg_emulators.c ====================================
@@ -196,17 +196,17 @@ const lang_t lang_pt_pt LANG_DATA = {
     .s_Type = "Tipo",
     .s_Size = "ROM",
     .s_Close = "Fechar",
-    .s_Delete_Rom_File = "Delete ROM",
-    .s_Delete_Rom_File_Confirm = "Delete '%s'?",
+    .s_Delete_Rom_File = "Eliminar ROM",
+    .s_Delete_Rom_File_Confirm = "Eliminar '%s'?",
     .s_GameProp = "Propriedades",
-    .s_Resume_game = "Resumir jogo",
+    .s_Resume_game = "Continuar jogo",
     .s_New_game = "Novo jogo",
-    .s_Del_favorite = "Apagar favorito",
+    .s_Del_favorite = "Eliminar favorito",
     .s_Add_favorite = "Adicionar favorito",
-    .s_Delete_save = "Apagar gravação",
-    .s_Confirm_del_save = "Apagar gravação?",
-    .s_Confirm_del_sram = "Delete SRAM file?",
-    .s_Free_space_alert = "Not enough free space for a new save, please delete some.",
+    .s_Delete_save = "Eliminar gravação",
+    .s_Confirm_del_save = "Eliminar gravação?",
+    .s_Confirm_del_sram = "Eliminar SRAM?",
+    .s_Free_space_alert = "Espaço para gravação insuficiente, liberte algum.",
 #if CHEAT_CODES == 1
     .s_Cheat_Codes = "Código de Batota",
     .s_Cheat_Codes_Title = "Opções de Batota",
@@ -222,7 +222,7 @@ const lang_t lang_pt_pt LANG_DATA = {
     .s_CPU_Overclock_2 = "Máximo",
 #if INTFLASH_BANK == 2
     .s_Reboot = "Reiniciar",
-    .s_Original_system = "Reposição de Sistema",
+    .s_Original_system = "Reposição do Sistema",
     .s_Confirm_Reboot = "Confirmar reinício?",
 #endif
     .s_Second_Unit = "s",
@@ -239,12 +239,12 @@ const lang_t lang_pt_pt LANG_DATA = {
     .s_Flash_Name = "Flash Ref",
     .s_Flash_SR = "Flash SR",
     .s_Flash_CR = "Flash CR",
-    .s_Flash_Size = "Flash Size",
+    .s_Flash_Size = "Flash Capacidade",
     .s_Smallest_erase = "Menor apagamento",
     .s_DBGMCU_IDCODE = "DBGMCU IDCODE",
     .s_DBGMCU_CR = "DBGMCU CR",
     .s_DBGMCU_clock = "DBGMCU Clock",
-    .s_DBGMCU_clock_on = "On",
+    .s_DBGMCU_clock_on = "Ligado",
     .s_DBGMCU_clock_auto = "Auto",
     .s_Debug_Title = "Depuração",
     .s_Idle_power_off = "Desligar se inativo",

@@ -145,9 +145,9 @@ endif
 
 PYTHON3 ?= /usr/bin/env python3
 
-# Version of header for cores, it shall be incremented if the header
+# Version of header for internal cores, it shall be incremented if the header
 # format is changed and is breaking compatibility with previous format.
-CORE_BIN_HEADER_VERSION ?= 0
+INTERNAL_CORE_BIN_HEADER_VERSION ?= 0
 
 #######################################
 # paths
@@ -438,7 +438,7 @@ AS_DEFS +=
 # C defines
 C_DEFS +=  \
 -D_GNU_SOURCE \
--DCORE_BIN_HEADER_VERSION=$(CORE_BIN_HEADER_VERSION) \
+-DINTERNAL_CORE_BIN_HEADER_VERSION=$(INTERNAL_CORE_BIN_HEADER_VERSION) \
 -DINTFLASH_BANK=$(INTFLASH_BANK) \
 -DINTFLASH_ADDRESS=$(INTFLASH_ADDRESS) \
 -DBIG_BANK=$(BIG_BANK) \
@@ -664,6 +664,7 @@ Core/Inc/gittag.h: FORCE | $(BUILD_DIR)
 $(BUILD_DIR)/core/error_screens.o: Core/Inc/gittag.h
 $(BUILD_DIR)/core/main.o: Core/Inc/gittag.h
 $(BUILD_DIR)/core/rg_main.o: Core/Inc/gittag.h
+$(BUILD_DIR)/core/rg_emulators.o: Core/Inc/gittag.h
 
 # Run parse_roms.py to generate information about the roms
 $(BUILD_DIR)/rom_files.txt: FORCE | $(BUILD_DIR)
@@ -1051,14 +1052,17 @@ endif
 SD_FOLDER := sd_content
 CORES_DIR := $(SD_FOLDER)/cores
 FONTS_DIR := $(SD_FOLDER)/fonts
+UNICODE_FONT_SOURCE ?= assets/fonts/NotoSansCJK-Regular.otf
+UNICODE_FONT_SCRIPTS := greek math_operators geometric misc_symbols cjk_punct hiragana katakana cjk hangul fullwidth
+UNICODE_FONT_BINS := $(addprefix $(FONTS_DIR)/unicode_, $(addsuffix .bin, $(UNICODE_FONT_SCRIPTS)))
 MAPPERS_DIR := $(CORES_DIR)/mappers
 HOMEBREWS_FOLDER := $(SD_FOLDER)/roms/homebrew
 RELEASE_FOLDER := release
 
-define EXTRACT_CORE_BIN_WITH_HEADER
+define EXTRACT_INTERNAL_CORE_BIN_WITH_HEADER
 	@tmp_file="$2.tmp"; \
-	version_lo=$$(( $(CORE_BIN_HEADER_VERSION) & 0xFF )); \
-	version_hi=$$(( ($(CORE_BIN_HEADER_VERSION) >> 8) & 0xFF )); \
+	version_lo=$$(( $(INTERNAL_CORE_BIN_HEADER_VERSION) & 0xFF )); \
+	version_hi=$$(( ($(INTERNAL_CORE_BIN_HEADER_VERSION) >> 8) & 0xFF )); \
 	git_tag=$$(sed -n 's/^#define GIT_TAG "\(.*\)"/\1/p' Core/Inc/gittag.h); \
 	tag_len=$${#git_tag}; \
 	if [ $$tag_len -gt 255 ]; then echo "CORE: internal git tag too long ($$tag_len > 255)"; rm -f "$$tmp_file"; exit 1; fi; \
@@ -1111,28 +1115,32 @@ prepare_msx_bios_files: create_sd_folders
 	@cp $(SD_FOLDER)/bios/msx/PANASONICDISK.rom $(SD_FOLDER)/bios/msx/PANASONICDISK_.rom
 	@printf '\x00' | dd of=$(SD_FOLDER)/bios/msx/PANASONICDISK_.rom bs=1 seek=6124 count=1 conv=notrunc status=none
 
+$(FONTS_DIR)/unicode_%.bin: $(UNICODE_FONT_SOURCE) tools/gen_unicode_bin.py | create_sd_folders
+	@echo "Generating $@ from $(UNICODE_FONT_SOURCE)"
+	@$(PYTHON3) tools/gen_unicode_bin.py "$(UNICODE_FONT_SOURCE)" --script "$*" -o "$@"
+
 create_sd_data: create_sd_folders prepare_msx_bios_files $(MAPPER_BINS) $(BUILD_DIR)/$(TARGET)_intflash.bin
 	@$(PYTHON3) external/fceumm-go/gen_mappers_table.py $(MAPPERS_DIR)/mappers_table.bin
 	@$(PYTHON3) external/fceumm-go/gen_ines_database.py $(MAPPERS_DIR)/ines_correct.bin
 	@$(PYTHON3) tools/gen_fceu_palettes_table.py $(SD_FOLDER)/bios/nes/palettes.bin
 	@$(PYTHON3) external/stella2014-go/convert_defprops.py external/stella2014-go/stella/src/emucore/DefProps.hxx $(CORES_DIR)/a2600_defprops.bin
 	@$(PYTHON3) external/blueMSX-go/create_compact_database_file.py external/blueMSX-go/system/bluemsx/Databases/msxromdb.xml $(SD_FOLDER)/bios/msx/msxromdb.bin
-	$(call EXTRACT_CORE_BIN_WITH_HEADER,.overlay_nes,$(CORES_DIR)/nes.bin)
-	$(call EXTRACT_CORE_BIN_WITH_HEADER,.overlay_nes_fceu,$(CORES_DIR)/nes_fceu.bin)
-	$(call EXTRACT_CORE_BIN_WITH_HEADER,.overlay_tgb,$(CORES_DIR)/tgb.bin)
-	$(call EXTRACT_CORE_BIN_WITH_HEADER,.overlay_sms,$(CORES_DIR)/sms.bin)
-	$(call EXTRACT_CORE_BIN_WITH_HEADER,.overlay_pce,$(CORES_DIR)/pce.bin)
-	$(call EXTRACT_CORE_BIN_WITH_HEADER,.overlay_msx,$(CORES_DIR)/msx.bin)
-	$(call EXTRACT_CORE_BIN_WITH_HEADER,.overlay_wsv,$(CORES_DIR)/wsv.bin)
-	$(call EXTRACT_CORE_BIN_WITH_HEADER,.overlay_gw,$(CORES_DIR)/gw.bin)
-	$(call EXTRACT_CORE_BIN_WITH_HEADER,.overlay_md,$(CORES_DIR)/md.bin)
-	$(call EXTRACT_CORE_BIN_WITH_HEADER,.overlay_a2600,$(CORES_DIR)/a2600.bin)
-	$(call EXTRACT_CORE_BIN_WITH_HEADER,.overlay_a7800,$(CORES_DIR)/a7800.bin)
-	$(call EXTRACT_CORE_BIN_WITH_HEADER,.overlay_amstrad,$(CORES_DIR)/amstrad.bin)
-	$(call EXTRACT_CORE_BIN_WITH_HEADER,.overlay_videopac,$(CORES_DIR)/videopac.bin)
-	$(call EXTRACT_CORE_BIN_WITH_HEADER,.overlay_tama,$(CORES_DIR)/tama.bin)
-	$(call EXTRACT_CORE_BIN_WITH_HEADER,.overlay_pkmini,$(CORES_DIR)/pkmini.bin)
-	$(call EXTRACT_CORE_BIN_WITH_HEADER,.overlay_pico8,$(CORES_DIR)/pico8_stub.bin)
+	$(call EXTRACT_INTERNAL_CORE_BIN_WITH_HEADER,.overlay_nes,$(CORES_DIR)/nes.bin)
+	$(call EXTRACT_INTERNAL_CORE_BIN_WITH_HEADER,.overlay_nes_fceu,$(CORES_DIR)/nes_fceu.bin)
+	$(call EXTRACT_INTERNAL_CORE_BIN_WITH_HEADER,.overlay_tgb,$(CORES_DIR)/tgb.bin)
+	$(call EXTRACT_INTERNAL_CORE_BIN_WITH_HEADER,.overlay_sms,$(CORES_DIR)/sms.bin)
+	$(call EXTRACT_INTERNAL_CORE_BIN_WITH_HEADER,.overlay_pce,$(CORES_DIR)/pce.bin)
+	$(call EXTRACT_INTERNAL_CORE_BIN_WITH_HEADER,.overlay_msx,$(CORES_DIR)/msx.bin)
+	$(call EXTRACT_INTERNAL_CORE_BIN_WITH_HEADER,.overlay_wsv,$(CORES_DIR)/wsv.bin)
+	$(call EXTRACT_INTERNAL_CORE_BIN_WITH_HEADER,.overlay_gw,$(CORES_DIR)/gw.bin)
+	$(call EXTRACT_INTERNAL_CORE_BIN_WITH_HEADER,.overlay_md,$(CORES_DIR)/md.bin)
+	$(call EXTRACT_INTERNAL_CORE_BIN_WITH_HEADER,.overlay_a2600,$(CORES_DIR)/a2600.bin)
+	$(call EXTRACT_INTERNAL_CORE_BIN_WITH_HEADER,.overlay_a7800,$(CORES_DIR)/a7800.bin)
+	$(call EXTRACT_INTERNAL_CORE_BIN_WITH_HEADER,.overlay_amstrad,$(CORES_DIR)/amstrad.bin)
+	$(call EXTRACT_INTERNAL_CORE_BIN_WITH_HEADER,.overlay_videopac,$(CORES_DIR)/videopac.bin)
+	$(call EXTRACT_INTERNAL_CORE_BIN_WITH_HEADER,.overlay_tama,$(CORES_DIR)/tama.bin)
+	$(call EXTRACT_INTERNAL_CORE_BIN_WITH_HEADER,.overlay_pkmini,$(CORES_DIR)/pkmini.bin)
+	$(call EXTRACT_INTERNAL_CORE_BIN_WITH_HEADER,.overlay_pico8,$(CORES_DIR)/pico8_stub.bin)
 	@$(CP) -O binary --only-section=.overlay_celeste $(BUILD_DIR)/$(TARGET).elf $(HOMEBREWS_FOLDER)/celeste.bin
 	@$(CP) -O binary --only-section=.overlay_zelda3 $(BUILD_DIR)/$(TARGET).elf "$(HOMEBREWS_FOLDER)/Zelda 3.bin"
 	@$(CP) -O binary --only-section=.rodata_zelda3 $(BUILD_DIR)/$(TARGET).elf "$(HOMEBREWS_FOLDER)/zelda3.ro"
@@ -1155,10 +1163,8 @@ create_sd_data: create_sd_folders prepare_msx_bios_files $(MAPPER_BINS) $(BUILD_
 	@$(CP) -O binary --only-section=.sd_fonts_cp1252_serif $(BUILD_DIR)/$(TARGET).elf $(FONTS_DIR)/cp1252_serif.bin
 	@$(CP) -O binary --only-section=.sd_fonts_cp1252_unbalanced $(BUILD_DIR)/$(TARGET).elf $(FONTS_DIR)/cp1252_unbalanced.bin
 
-	@$(CP) -O binary --only-section=.sd_fonts_unicode_katakana $(BUILD_DIR)/$(TARGET).elf $(FONTS_DIR)/unicode_katakana.bin
-	@$(CP) -O binary --only-section=.sd_fonts_unicode_kanji    $(BUILD_DIR)/$(TARGET).elf $(FONTS_DIR)/unicode_kanji.bin
-
 	@$(V)cp build/gw_retro_go_intflash.bin $(SD_FOLDER)/update_bank2.bin
+	@$(MAKE) --no-print-directory $(UNICODE_FONT_BINS)
 
 flash_sd: CheckTools CheckDirtySubmodules $(BUILD_DIR)/$(TARGET)_intflash.bin create_sd_data
 	$(eval MAPPERS_SDPUSH := $(foreach mapper,$(MAPPER_NAMES),-- sdpush --file $(MAPPERS_DIR)/mapper_$(mapper).bin --dest-path "/cores/mappers/"))
@@ -1255,8 +1261,8 @@ docker_build:
 .PHONY: docker_build
 
 docker:
-	$(V)docker run --rm -it --privileged --network host --user $(shell id -u):$(shell id -g) -v $(PWD):/opt/workdir -v /dev/bus/usb:/dev/bus/usb sylverb/retro-go-sd-builder \
-	bash -l -c "make -j\$$(nproc) CHECK_DIRTY_SUBMODULE=0 COVERFLOW=1 SHARED_HIBERNATE_SAVESTATE=1 DISABLE_SPLASH_SCREEN=1 INTFLASH_BANK=2 CHEAT_CODES=1 release"
+	$(V)docker run --rm -it --privileged --network host --user $(shell id -u):$(shell id -g) -v $(PWD):/opt/workdir -v /dev/bus/usb:/dev/bus/usb sylverb/retro-go-sd-builder:v1.3 \
+	bash -l -c "make -j\$$(nproc) CHECK_DIRTY_SUBMODULE=0 COVERFLOW=1 SHARED_HIBERNATE_SAVESTATE=1 DISABLE_SPLASH_SCREEN=1 INTFLASH_BANK=2 CHEAT_CODES=1 ZH_CN=1 ZH_TW=1 KO_KR=1 JA_JP=1 release"
 .PHONY: docker
 
 help:
