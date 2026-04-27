@@ -207,6 +207,9 @@ const lang_t lang_pt_pt LANG_DATA = {
     .s_Confirm_del_save = "Eliminar gravação?",
     .s_Confirm_del_sram = "Eliminar SRAM?",
     .s_Free_space_alert = "Espaço para gravação insuficiente, liberte algum.",
+    .s_Corrupted_Title = "Instalação corrompida detectada",
+    .s_Corrupted_Install_1 = "reinstale o",
+    .s_Corrupted_Install_2 = "Retro-Go-SD",
 #if CHEAT_CODES == 1
     .s_Cheat_Codes = "Código de Batota",
     .s_Cheat_Codes_Title = "Opções de Batota",
@@ -233,6 +236,7 @@ const lang_t lang_pt_pt LANG_DATA = {
     .s_LangAuthor = "Pollux",
     .s_Debug_menu = "Menu de depuração",
     .s_Reset_settings = "Repôr configurações",
+    .s_Patreon_menu = "Patreon / novidades",
     .s_Retro_Go = "Sobre %s",
     .s_Confirm_Reset_settings = "Repôr configurações?",
     .s_Flash_JEDEC_ID = "Flash JEDEC ID",

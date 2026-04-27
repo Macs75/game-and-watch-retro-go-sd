@@ -184,6 +184,9 @@ typedef struct
     const char *s_Confirm_del_save;
     const char *s_Confirm_del_sram;
     const char *s_Free_space_alert;
+    const char *s_Corrupted_Title;
+    const char *s_Corrupted_Install_1;
+    const char *s_Corrupted_Install_2;
 #if CHEAT_CODES == 1
     const char *s_Cheat_Codes;
     const char *s_Cheat_Codes_Title;
@@ -210,6 +213,7 @@ typedef struct
     const char *s_LangAuthor;
     const char *s_Debug_menu;
     const char *s_Reset_settings;
+    const char *s_Patreon_menu;
     const char *s_Retro_Go;
     const char *s_Confirm_Reset_settings;
     const char *s_Flash_JEDEC_ID;

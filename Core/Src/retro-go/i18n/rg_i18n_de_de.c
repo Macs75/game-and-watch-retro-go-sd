@@ -207,6 +207,9 @@ const lang_t lang_de_de LANG_DATA = {
     .s_Confirm_del_save = "Spielstand wirklich löschen?",
     .s_Confirm_del_sram = "Delete SRAM file?",
     .s_Free_space_alert = "Not enough free space for a new save, please delete some.",
+    .s_Corrupted_Title = "Beschädigte Installation erkannt",
+    .s_Corrupted_Install_1 = "bitte installiere",
+    .s_Corrupted_Install_2 = "Retro-Go-SD neu",
 #if CHEAT_CODES == 1
     .s_Cheat_Codes = "Cheat Codes",
     .s_Cheat_Codes_Title = "Cheat Options",
@@ -233,6 +236,7 @@ const lang_t lang_de_de LANG_DATA = {
     .s_LangAuthor = "LeZerb",
     .s_Debug_menu = "Debug Menü",
     .s_Reset_settings = "Einstellungen zurücksetzen",
+    .s_Patreon_menu = "Patreon / News",
     .s_Retro_Go = "Über %s",
     .s_Confirm_Reset_settings = "Alle Einstellungen zurücksetzen?",
     .s_Flash_JEDEC_ID = "Flash JEDEC ID",

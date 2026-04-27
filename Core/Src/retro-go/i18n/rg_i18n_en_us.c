@@ -203,6 +203,9 @@ const lang_t lang_en_us LANG_DATA = {
     .s_Confirm_del_save = "Delete save file?",
     .s_Confirm_del_sram = "Delete SRAM file?",
     .s_Free_space_alert = "Not enough free space for a new save, please delete some.",
+    .s_Corrupted_Title = "Corrupted installation detected",
+    .s_Corrupted_Install_1 = "please reinstall",
+    .s_Corrupted_Install_2 = "Retro-Go-SD",
 #if CHEAT_CODES == 1
     .s_Cheat_Codes = "Cheat Codes",
     .s_Cheat_Codes_Title = "Cheat Options",
@@ -229,6 +232,7 @@ const lang_t lang_en_us LANG_DATA = {
     .s_LangAuthor = "Original",
     .s_Debug_menu = "Debug menu",
     .s_Reset_settings = "Reset settings",
+    .s_Patreon_menu = "Patreon / news",
     .s_Retro_Go = "About %s",
     .s_Confirm_Reset_settings = "Reset all settings?",
     .s_Flash_JEDEC_ID = "Flash JEDEC ID",

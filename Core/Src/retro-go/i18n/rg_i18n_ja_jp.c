@@ -209,6 +209,9 @@ const lang_t lang_ja_jp LANG_DATA = {
     .s_Confirm_del_save = "セーブを消す？",
     .s_Confirm_del_sram = "SRAM ファイルを削除しますか？",
     .s_Free_space_alert = "Nセーブ用空き容量が不足しています。一部を削除してください",
+    .s_Corrupted_Title = "破損したインストールを検出",
+    .s_Corrupted_Install_1 = "Retro-Go-SD を",
+    .s_Corrupted_Install_2 = "再インストールしてください",
 #if CHEAT_CODES == 1
     .s_Cheat_Codes = "チートコード",
     .s_Cheat_Codes_Title = "チートオプション",
@@ -236,6 +239,7 @@ const lang_t lang_ja_jp LANG_DATA = {
     .s_LangAuthor = "標準",
     .s_Debug_menu = "デバッグメニュー",
     .s_Reset_settings = "設定をリセット",
+    .s_Patreon_menu = "Patreon / お知らせ",
     //.s_Close                   = "閉じる",
     .s_Retro_Go = "%sについて",
     .s_Confirm_Reset_settings = "全ての設定をリセットしますか?",
