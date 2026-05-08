@@ -6,3 +6,4 @@ numpy
 gnwmanager
 pyyaml
 littlefs-python
+tamp
