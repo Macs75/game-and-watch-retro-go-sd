@@ -310,7 +310,17 @@ static int emulators_count = 0;
 static retro_emulator_file_t *CHOSEN_FILE = NULL;
 #endif
 
-uint8_t rg_rom_list_parent_arg_token;
+/* Sentinel "parent" placeholder for the row that says "< /" when navigating
+ * inside a subfolder. Stored as a real retro_emulator_file_t so any GUI code
+ * that casts item->arg to retro_emulator_file_t* (e.g. cover-drawing) reads a
+ * valid struct instead of garbage. img_state pre-set to IMG_STATE_NO_COVER so
+ * cover-loading short-circuits without ever calling odroid_system_get_path. */
+static retro_emulator_file_t rg_rom_list_parent_placeholder = {
+    .ext = NULL,
+#if COVERFLOW != 0
+    .img_state = IMG_STATE_NO_COVER,
+#endif
+};
 
 /** Label for list row 0 when inside a ROM subfolder: "< " + basename(parent dir), or "< /" for emulator root. */
 static char rg_rom_list_parent_label[48];
@@ -338,7 +348,7 @@ static void build_rom_parent_label(const retro_emulator_t *emu)
 
 bool rg_rom_list_arg_is_parent(const void *arg)
 {
-    return arg == (void *)&rg_rom_list_parent_arg_token;
+    return arg == (void *)&rg_rom_list_parent_placeholder;
 }
 
 static void emulator_browse_folder_path(const retro_emulator_t *emu, char *folder, size_t folder_size)
@@ -507,7 +517,7 @@ static void emulator_fill_tab_list(tab_t *tab, retro_emulator_t *emu)
         {
             build_rom_parent_label(emu);
             tab->listbox.items[0].text = rg_rom_list_parent_label;
-            tab->listbox.items[0].arg = (void *)&rg_rom_list_parent_arg_token;
+            tab->listbox.items[0].arg = (void *)&rg_rom_list_parent_placeholder;
         }
         for (int i = 0; i < n; i++)
         {
