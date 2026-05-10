@@ -398,6 +398,40 @@ HAL_DRIVER_URL ?= https://raw.githubusercontent.com/STMicroelectronics/stm32h7xx
 # Local path for the SDK
 SDK_DIR ?= Drivers
 
+# Paths for submodule directories (used in download rules and sentinels)
+HAL_DRIVER_DIR   := Drivers/STM32H7xx_HAL_Driver
+CMSIS_DEVICE_DIR := Drivers/CMSIS/Device/ST/STM32H7xx
+
+# Sentinel files to detect SDK version changes
+SDK_SENTINEL       := $(SDK_DIR)/.sdk_version
+HAL_SENTINEL       := $(HAL_DRIVER_DIR)/.hal_version
+CMSIS_DEV_SENTINEL := $(CMSIS_DEVICE_DIR)/.cmsis_device_version
+
+$(SDK_SENTINEL): FORCE
+	$(V)mkdir -p $(SDK_DIR)
+	$(V)if [ "$$(cat $@ 2>/dev/null)" != "$(SDK_VERSION)" ]; then \
+		$(ECHO) "SDK version mismatch, re-downloading..."; \
+		rm -f $(filter-out $(HAL_DRIVER_DIR)/% $(CMSIS_DEVICE_DIR)/%,\
+		      $(filter $(SDK_DIR)/%,$(SDK_HEADERS) $(SDK_C_SOURCES) $(SDK_ASM_SOURCES))); \
+		echo "$(SDK_VERSION)" > $@; \
+	fi
+
+$(HAL_SENTINEL): FORCE
+	$(V)mkdir -p $(HAL_DRIVER_DIR)
+	$(V)if [ "$$(cat $@ 2>/dev/null)" != "$(HAL_DRIVER_VERSION)" ]; then \
+		$(ECHO) "HAL Driver version mismatch, re-downloading..."; \
+		rm -f $(filter $(HAL_DRIVER_DIR)/%,$(SDK_HEADERS) $(SDK_C_SOURCES)); \
+		echo "$(HAL_DRIVER_VERSION)" > $@; \
+	fi
+
+$(CMSIS_DEV_SENTINEL): FORCE
+	$(V)mkdir -p $(CMSIS_DEVICE_DIR)
+	$(V)if [ "$$(cat $@ 2>/dev/null)" != "$(CMSIS_DEVICE_VERSION)" ]; then \
+		$(ECHO) "CMSIS Device version mismatch, re-downloading..."; \
+		rm -f $(filter $(CMSIS_DEVICE_DIR)/%,$(SDK_HEADERS) $(SDK_C_SOURCES) $(SDK_ASM_SOURCES)); \
+		echo "$(CMSIS_DEVICE_VERSION)" > $@; \
+	fi
+
 
 # SDK C sources
 SDK_C_SOURCES =  \
@@ -439,10 +473,9 @@ Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_wwdg.c \
 Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal.c \
 
 
-# SDK ASM sources
-SDK_ASM_SOURCES =  \
-Drivers/CMSIS/Device/ST/STM32H7xx/Source/Templates/gcc/startup_stm32h7b0xx.s \
-Core/Src/memcpy-armv7m.s
+# SDK ASM sources (downloaded from repos, not project files)
+SDK_ASM_SOURCES = \
+Drivers/CMSIS/Device/ST/STM32H7xx/Source/Templates/gcc/startup_stm32h7b0xx.s
 
 # SDK headers
 SDK_HEADERS = \
@@ -766,6 +799,7 @@ vpath %.cxx $(sort $(dir $(A2600_CXX_SOURCES) ))
 
 # list of ASM program objects
 OBJECTS += $(addprefix $(BUILD_DIR)/,$(notdir $(SDK_ASM_SOURCES:.s=.o)))
+OBJECTS += $(BUILD_DIR)/memcpy-armv7m.o
 vpath %.s $(sort $(dir $(SDK_ASM_SOURCES)))
 
 # function used to generate prerequisite rules for SDK objects
@@ -810,7 +844,7 @@ ifeq (${CHECK_TOOLS},1)
 CheckTools:
 	@# Check that the tools in the toolchain exist
 	$(V)/usr/bin/env bash -c " \
-		for tool in $(CC) $(CP) $(SZ) $(GDB) $(DUMP); do \
+		for tool in $(CC) $(CP) $(SZ) $(DUMP); do \
 		which \$$tool 2> /dev/null > /dev/null || \
 		( \
 			echo -e \"\nCannot find \$$tool\n\" && \
@@ -847,6 +881,10 @@ endif
 .PHONY: CheckTools
 
 $(BUILD_DIR)/%.o: %.s Makefile.common Makefile | $(BUILD_DIR)
+	$(V)$(ECHO) [ AS ] $(notdir $<)
+	$(V)$(AS) -c $(CFLAGS) $< -o $@
+
+$(BUILD_DIR)/memcpy-armv7m.o: Core/Src/memcpy-armv7m.s Makefile.common Makefile | $(BUILD_DIR)
 	$(V)$(ECHO) [ AS ] $(notdir $<)
 	$(V)$(AS) -c $(CFLAGS) $< -o $@
 
@@ -1609,22 +1647,22 @@ help:
 #######################################
 # download SDK files
 #######################################
-Drivers/STM32H7xx_HAL_Driver/%:
+$(HAL_DRIVER_DIR)/%: $(HAL_SENTINEL)
 	$(V)$(ECHO) [ WGET STM32CubeH7 HAL ] $(notdir $@)
 	$(V)mkdir -p $(dir $@)
-	$(V)wget -q $(HAL_DRIVER_URL)/$(HAL_DRIVER_VERSION)/$* -O $@
+	$(V)wget -q $(HAL_DRIVER_URL)/$(HAL_DRIVER_VERSION)/$(patsubst $(HAL_DRIVER_DIR)/%,%,$@) -O $@
 
-Drivers/CMSIS/Device/ST/STM32H7xx/%:
+$(CMSIS_DEVICE_DIR)/%: $(CMSIS_DEV_SENTINEL)
 	$(V)$(ECHO) [ WGET STM32CubeH7 CMSIS ] $(notdir $@)
 	$(V)mkdir -p $(dir $@)
-	$(V)wget -q $(CMSIS_DEVICE_URL)/$(CMSIS_DEVICE_VERSION)/$* -O $@
+	$(V)wget -q $(CMSIS_DEVICE_URL)/$(CMSIS_DEVICE_VERSION)/$(patsubst $(CMSIS_DEVICE_DIR)/%,%,$@) -O $@
 
-$(SDK_DIR)/%:
+$(SDK_DIR)/%: $(SDK_SENTINEL)
 	$(V)$(ECHO) [ WGET STM32CubeH7 ] $(notdir $@)
 	$(V)wget -q $(SDK_URL)/$(SDK_VERSION)/$@ -P $(dir $@)
 
 .PHONY: download_sdk
-download_sdk: $(SDK_HEADERS) $(SDK_C_SOURCES) $(SDK_ASM_SOURCES)
+download_sdk: $(SDK_SENTINEL) $(HAL_SENTINEL) $(CMSIS_DEV_SENTINEL) $(SDK_HEADERS) $(SDK_C_SOURCES) $(SDK_ASM_SOURCES)
 
 #######################################
 # clean up
