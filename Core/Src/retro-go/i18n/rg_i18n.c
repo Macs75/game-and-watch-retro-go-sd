@@ -694,79 +694,36 @@ int i18n_draw_text_line(uint16_t x_pos, uint16_t y_pos, uint16_t width, const ch
     int font_height = 12;
     int x_offset = 0;
 
-    /* Two paths — LUT8 writes 1-byte CLUT indices, RGB565 writes 16-bit
-     * direct color. Inline duplication so the hot inner loops use typed
-     * pointers (cheaper than a runtime stride check per pixel). */
-    if (lcd_get_mode() == LCD_MODE_LUT8) {
-        uint8_t *fb = (uint8_t *)lcd_get_active_buffer();
-        uint8_t fg = (uint8_t)lcd_pack_color(color);
-        uint8_t bg = (uint8_t)lcd_pack_color(color_bg);
+    lcd_pen_t fg = lcd_pen(color);
+    lcd_pen_t bg = lcd_pen(color_bg);
 
-        if (!transparent) {
+    if (!transparent) {
+        for (int y = 0; y < font_height; y++)
+            lcd_pen_run(&bg, (y_pos + y) * ODROID_SCREEN_WIDTH + x_pos, width);
+    }
+
+    uint32_t codepoint;
+    int bytes;
+    while (*text) {
+        bytes = utf8_decode(text, &codepoint);
+        if (bytes == 0) break;
+        text += bytes;
+        FontEntry *entry = get_font_data(codepoint);
+        if (entry == NULL) continue;
+        int cw = entry->width;
+        if ((x_offset + cw) > width) break;
+        if (cw != 0 && entry->char_data != NULL) {
+            int line_bytes = (cw + 7) / 8;
             for (int y = 0; y < font_height; y++) {
-                uint8_t *row = &fb[(y_pos + y) * ODROID_SCREEN_WIDTH + x_pos];
-                for (int x = 0; x < width; x++)
-                    row[x] = bg;
-            }
-        }
-
-        uint32_t codepoint;
-        int bytes;
-        while (*text) {
-            bytes = utf8_decode(text, &codepoint);
-            if (bytes == 0) break;
-            text += bytes;
-            FontEntry *entry = get_font_data(codepoint);
-            if (entry == NULL) continue;
-            int cw = entry->width;
-            if ((x_offset + cw) > width) break;
-            if (cw != 0 && entry->char_data != NULL) {
-                int line_bytes = (cw + 7) / 8;
-                for (int y = 0; y < font_height; y++) {
-                    uint32_t *pixels_data = (uint32_t *)&(entry->char_data[y * line_bytes]);
-                    uint8_t *row = &fb[(y_pos + y) * ODROID_SCREEN_WIDTH + x_pos + x_offset];
-                    for (int x = 0; x < cw; x++) {
-                        if (pixels_data[0] & (1 << x))
-                            row[x] = fg;
-                    }
+                uint32_t *pixels_data = (uint32_t *)&(entry->char_data[y * line_bytes]);
+                int row_off = (y_pos + y) * ODROID_SCREEN_WIDTH + x_pos + x_offset;
+                for (int x = 0; x < cw; x++) {
+                    if (pixels_data[0] & (1 << x))
+                        lcd_pen_set(&fg, row_off + x);
                 }
             }
-            x_offset += cw;
         }
-    } else {
-        uint16_t *fb = (uint16_t *)lcd_get_active_buffer();
-
-        if (!transparent) {
-            for (int y = 0; y < font_height; y++) {
-                uint16_t *row = &fb[(y_pos + y) * ODROID_SCREEN_WIDTH + x_pos];
-                for (int x = 0; x < width; x++)
-                    row[x] = color_bg;
-            }
-        }
-
-        uint32_t codepoint;
-        int bytes;
-        while (*text) {
-            bytes = utf8_decode(text, &codepoint);
-            if (bytes == 0) break;
-            text += bytes;
-            FontEntry *entry = get_font_data(codepoint);
-            if (entry == NULL) continue;
-            int cw = entry->width;
-            if ((x_offset + cw) > width) break;
-            if (cw != 0 && entry->char_data != NULL) {
-                int line_bytes = (cw + 7) / 8;
-                for (int y = 0; y < font_height; y++) {
-                    uint32_t *pixels_data = (uint32_t *)&(entry->char_data[y * line_bytes]);
-                    uint16_t *row = &fb[(y_pos + y) * ODROID_SCREEN_WIDTH + x_pos + x_offset];
-                    for (int x = 0; x < cw; x++) {
-                        if (pixels_data[0] & (1 << x))
-                            row[x] = color;
-                    }
-                }
-            }
-            x_offset += cw;
-        }
+        x_offset += cw;
     }
 
     return font_height;
