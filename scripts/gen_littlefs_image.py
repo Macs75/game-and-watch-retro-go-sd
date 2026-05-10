@@ -77,7 +77,7 @@ def copy_tree(fs, src, dest, exclude_relpaths=None):
     return copied_files
 
 
-def copy_tree_cores_filtered(fs, src, dest, active_systems, sd_cores_pack):
+def copy_tree_cores_filtered(fs, src, dest, active_systems, sd_cores_pack, nes_mapper_allowlist=None):
     """Copy only core blobs referenced by non-empty roms/<system>/ trees."""
     copied_files = 0
     for path in sorted(src.rglob("*")):
@@ -86,7 +86,9 @@ def copy_tree_cores_filtered(fs, src, dest, active_systems, sd_cores_pack):
         rel_path = path.relative_to(src).as_posix()
         if path.is_dir():
             continue
-        if not sd_cores_pack.core_relative_path_allowed(rel_path, active_systems):
+        if not sd_cores_pack.core_relative_path_allowed(
+            rel_path, active_systems, nes_mapper_allowlist=nes_mapper_allowlist
+        ):
             continue
         fs_path = "/" + dest if not rel_path else "/" + dest + "/" + rel_path
         copy_file(fs, path, fs_path)
@@ -121,6 +123,11 @@ def main():
         "--no-cores-filter",
         action="store_true",
         help="Copy the entire sd_content/cores tree (disable ROM-based selection).",
+    )
+    parser.add_argument(
+        "--no-nes-mapper-prune",
+        action="store_true",
+        help="Pack every sd_content/cores/mappers/*.bin (disable scan of roms/nes).",
     )
     parser.add_argument(
         "--refresh-pico8-cores",
@@ -171,6 +178,7 @@ def main():
         sys.path.insert(0, scripts_dir)
     import sd_cores_pack  # noqa: E402
     import pico8_gnw_cores  # noqa: E402
+    import nes_rom_mappers  # noqa: E402
 
     project_roms = (repo / args.roms_dir).resolve()
     sd_roms_tree = sd_content / "roms"
@@ -178,6 +186,31 @@ def main():
         project_roms if project_roms.is_dir() else None,
         sd_roms_tree if sd_roms_tree.is_dir() else None,
     )
+
+    nes_mapper_allowlist = None
+    if (
+        not args.no_cores_filter
+        and not args.no_nes_mapper_prune
+        and "nes" in active_systems
+    ):
+        nes_mapper_allowlist, mapper_warn = nes_rom_mappers.littlefs_nes_mapper_allowlist(
+            repo,
+            project_roms if project_roms.is_dir() else None,
+            sd_roms_tree if sd_roms_tree.is_dir() else None,
+        )
+        for w in mapper_warn:
+            print(w, file=sys.stderr)
+        if nes_mapper_allowlist is None:
+            print(
+                "LittleFS /cores: NES mapper scan was ambiguous; packing all mappers/",
+                file=sys.stderr,
+            )
+        else:
+            n_map = sum(1 for x in nes_mapper_allowlist if x.startswith("mappers/mapper_"))
+            print(
+                f"LittleFS /cores: NES mapper prune enabled ({n_map} mapper blob(s) "
+                f"+ mappers_table.bin + ines_correct.bin)"
+            )
 
     build_dir.mkdir(parents=True, exist_ok=True)
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -210,6 +243,7 @@ def main():
                     dest,
                     active_systems,
                     sd_cores_pack,
+                    nes_mapper_allowlist=nes_mapper_allowlist,
                 )
                 copied_files += n
                 sys_msg = ", ".join(sorted(active_systems)) if active_systems else "(no ROM folders)"

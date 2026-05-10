@@ -72,8 +72,14 @@ def active_system_dirnames_from_roms_trees(
 def core_relative_path_allowed(
     rel_posix: str,
     active_systems: frozenset[str],
+    nes_mapper_allowlist: frozenset[str] | None = None,
 ) -> bool:
-    """Whether rel_posix (relative to cores/, posix) should be copied to the image."""
+    """Whether rel_posix (relative to cores/, posix) should be copied to the image.
+
+    When ``nes`` is active and ``nes_mapper_allowlist`` is set, only those
+    ``mappers/*.bin`` paths (plus table/ines) are included; ``None`` keeps the
+    legacy behaviour (every file under mappers/).
+    """
     if rel_posix in LITTLEFS_EXCLUDE_CORE_RELPATHS:
         return False
     if rel_posix in ALWAYS_PACK_REL:
@@ -83,8 +89,12 @@ def core_relative_path_allowed(
         return True
 
     if "nes" in active_systems:
-        if rel_posix == "nes_fceu.bin" or rel_posix.startswith("mappers/"):
+        if rel_posix == "nes_fceu.bin":
             return True
+        if rel_posix.startswith("mappers/"):
+            if nes_mapper_allowlist is None:
+                return True
+            return rel_posix in nes_mapper_allowlist
 
     for dirname, relfiles in _SYSTEM_CORE_RELFILES.items():
         if dirname in active_systems:

@@ -1353,7 +1353,7 @@ $(FROGFS_IMAGE): create_sd_data scripts/gen_frogfs_image.py scripts/rom_frogfs_l
 frogfs_image: $(FROGFS_IMAGE)
 .PHONY: frogfs_image
 
-$(LITTLEFS_IMAGE): create_sd_data scripts/gen_littlefs_image.py scripts/sd_cores_pack.py scripts/pico8_gnw_cores.py
+$(LITTLEFS_IMAGE): create_sd_data scripts/gen_littlefs_image.py scripts/sd_cores_pack.py scripts/nes_rom_mappers.py scripts/pico8_gnw_cores.py
 	$(V)$(PYTHON3) scripts/gen_littlefs_image.py \
 		--sd-content $(SD_FOLDER) \
 		--output $@ \
