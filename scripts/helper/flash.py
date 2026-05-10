@@ -75,15 +75,24 @@ def flash_firmware(config: BuildConfig, dry_run: bool = False, pretty: bool = Fa
     commands: list[list[str]] = []
 
     if config.dual_boot:
-        internal = find_backup_file(backup_dir, f"internal_flash_backup_{config.target}.bin", 131072)
-        external = find_backup_file(backup_dir, f"flash_backup_{config.target}.bin",          config.offset_bytes)
-        if not internal or not external:
-            abort("Cannot flash dual-boot: stock firmware backups are missing.")
-        if config.flash_bootloader:
-            commands.append([
-                "gnwmanager", "flash-patch", config.target,
-                str(internal), str(external), "--bootloader",
-            ])
+        if config.flash_locally:
+            internal = find_backup_file(backup_dir, f"internal_flash_backup_{config.target}.bin", 131072)
+            external = find_backup_file(backup_dir, f"flash_backup_{config.target}.bin", config.offset_bytes)
+            if not internal or not external:
+                abort("Cannot flash dual-boot: stock firmware backups are missing.")
+            if config.flash_bootloader:
+                commands.append([
+                    "gnwmanager", "flash-patch", config.target,
+                    str(internal), str(external), "--bootloader",
+                ])
+        else:
+            if config.flash_bootloader:
+                commands.append([
+                    "gnwmanager", "flash-patch", config.target,
+                    f"internal_flash_backup_{config.target}.bin",
+                    f"flash_backup_{config.target}.bin",
+                    "--bootloader",
+                ])
 
     commands += flash_commands(config)
 
@@ -116,13 +125,14 @@ def build_parser(parent=None) -> argparse.ArgumentParser:
     p.add_argument("-y", "--yes",  action="store_true", help="Skip confirmation prompts.")
     p.add_argument("--dry-run",    action="store_true", help="Print commands without executing.")
     p.add_argument("--pretty",     action="store_true", help="Format printed commands for readability.")
+    p.add_argument("--force",      action="store_true", help="Proceed even if ROM size estimate exceeds flash capacity.")
     register_args(p, "core")
     return p
 
 
 if __name__ == "__main__":
     args      = build_parser().parse_args()
-    skip_keys = {"yes", "dry_run", "pretty"}
+    skip_keys = {"yes", "dry_run", "pretty", "force"}
     config    = load_config({k: v for k, v in vars(args).items() if v is not None and k not in skip_keys})
 
     if config.dual_boot and not firmware_backups_exist(Path(config.backup_dir), config.target, config.offset_bytes):

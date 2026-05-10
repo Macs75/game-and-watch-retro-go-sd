@@ -15,7 +15,7 @@ DEFAULT_DIRS = ("bios", "covers", "fonts", "roms")
 # Under /roms, do not duplicate trees that are merged into /bios (routing uses /bios for FrogFS).
 ROMS_TOP_EXCLUDE_FOR_BIOS_MERGE = frozenset({"bios"})
 # Artifacts / compressed ROMs not packed into FrogFS /roms (covers live under /covers).
-ROMS_SKIP_EXTENSIONS = frozenset({".lzma", ".img", ".jpg", ".jpeg", ".png", ".bmp"})
+ROMS_SKIP_EXTENSIONS = frozenset({".img", ".jpg", ".jpeg", ".png", ".bmp"})
 # Thumbnails from tools/gencovers.py (--dst); merged into FrogFS /covers (not repo ./covers).
 GENERATED_COVERS_SUBDIR = "covers_from_roms"
 
@@ -25,6 +25,18 @@ ZELDA3_US_SHA1 = "6D4F10A8B10E10DBE624CB23CF03B88BB8252973"
 SMW_US_SHA1 = "6B47BB75D16514B6A476AA0C73A683A2A4C18765"
 
 FROGFS_HOMEBREW_EXTRA = "frogfs_homebrew_extra"
+# Only pack these from restool staging (frogfs_homebrew_extra); ignore copies under project/sd roms trees
+# when the matching US ROM was not found (prepare_* returned False).
+ROMS_HOMEBREW_RESTOOL_DATS = frozenset(
+    (
+        pathlib.Path("homebrew") / "zelda3_assets.dat",
+        pathlib.Path("homebrew") / "smw_assets.dat",
+    )
+)
+# GNW homebrew payloads tied to restool-built assets; omit from FrogFS if US ROM → assets build skipped.
+ROMS_HOMEBREW_SMW_WORLD_BIN = pathlib.Path("homebrew") / "Super Mario World.bin"
+ROMS_HOMEBREW_ZELDA3_BIN = pathlib.Path("homebrew") / "Zelda 3.bin"
+ROMS_HOMEBREW_ZELDA3_RO = pathlib.Path("homebrew") / "zelda3.ro"
 
 
 def parse_int(value):
@@ -434,8 +446,36 @@ def copy_byteswapped_16(src, dst):
     shutil.copystat(src, dst)
 
 
-def stage_input_dirs(collect_dirs, stage_dir, roms_exclude_top=None, roms_skip_rel_paths=None):
-    """Merge multiple (src, dest) with the same dest into one staged tree."""
+def _roms_homebrew_zelda_smw_skip(
+    rel_path: pathlib.Path, *, zelda3_built: bool, smw_built: bool
+) -> bool:
+    """True if this roms-relative path must not be packed (orphan homebrew file without assets)."""
+    if rel_path == ROMS_HOMEBREW_SMW_WORLD_BIN and not smw_built:
+        return True
+    if rel_path == ROMS_HOMEBREW_ZELDA3_BIN and not zelda3_built:
+        return True
+    if rel_path == ROMS_HOMEBREW_ZELDA3_RO and not zelda3_built:
+        return True
+    return False
+
+
+def stage_input_dirs(
+    collect_dirs,
+    stage_dir,
+    roms_exclude_top=None,
+    roms_skip_rel_paths=None,
+    *,
+    skip_bios_msx=False,
+    frogfs_homebrew_dat_root: pathlib.Path | None = None,
+    zelda3_frogfs_built: bool = False,
+    smw_frogfs_built: bool = False,
+):
+    """Merge multiple (src, dest) with the same dest into one staged tree.
+
+    frogfs_homebrew_dat_root: when set, only this source dir may contribute
+    homebrew/zelda3_assets.dat and homebrew/smw_assets.dat (restool output).
+    zelda3_frogfs_built / smw_frogfs_built: gate homebrew/Zelda3*.bin|ro and Super Mario World.bin.
+    """
     if stage_dir.exists():
         shutil.rmtree(stage_dir)
     stage_dir.mkdir(parents=True)
@@ -456,7 +496,27 @@ def stage_input_dirs(collect_dirs, stage_dir, roms_exclude_top=None, roms_skip_r
         for src in sources:
             for path in src.rglob("*"):
                 rel_path = path.relative_to(src)
+                if (
+                    skip_bios_msx
+                    and dest == "bios"
+                    and rel_path.parts
+                    and rel_path.parts[0].lower() == "msx"
+                ):
+                    continue
                 if dest == "roms" and skip_under_roms_top(rel_path, roms_exclude_top):
+                    continue
+                if dest == "roms" and rel_path in ROMS_HOMEBREW_RESTOOL_DATS:
+                    allow = (
+                        frogfs_homebrew_dat_root is not None
+                        and src.resolve() == frogfs_homebrew_dat_root.resolve()
+                    )
+                    if not allow:
+                        continue
+                if dest == "roms" and _roms_homebrew_zelda_smw_skip(
+                    rel_path,
+                    zelda3_built=zelda3_frogfs_built,
+                    smw_built=smw_frogfs_built,
+                ):
                     continue
                 staged_path = staged_root / rel_path
                 if path.is_dir():
@@ -499,6 +559,12 @@ def main():
         help="Do not run tools/gencovers.py; only sd_content/covers is used for /covers (if any).",
     )
     parser.add_argument(
+        "--no-covers",
+        action="store_true",
+        help="Omit the /covers tree from FrogFS (skip gencovers and sd_content/covers). "
+        "Use when firmware is built with COVERFLOW!=1.",
+    )
+    parser.add_argument(
         "--bundle-pico8-ro-in-frogfs",
         action="store_true",
         help="When roms/pico8 is active: add pico8.ro from GNW ZIP to FrogFS /cores and post-patch XiP sentinels.",
@@ -518,6 +584,18 @@ def main():
         type=parse_int,
         default=0x90000000,
         help="QSPI mmap base (__EXTFLASH_BASE__) for pico8.ro post-patch.",
+    )
+    parser.add_argument(
+        "--rom-compression",
+        choices=("none", "lzma"),
+        default="none",
+        help="Pre-compress ROM payloads under /roms in the FrogFS staging tree (SD_CARD=0 build; "
+        "same LZMA formats as legacy parse_roms.py). Use with firmware built without GNW_DISABLE_COMPRESSION.",
+    )
+    parser.add_argument(
+        "--compress-gb-speed",
+        action="store_true",
+        help="Game Boy: selective bank compression (legacy --compress_gb_speed).",
     )
     parser.add_argument(
         "--extflash-offset",
@@ -544,6 +622,8 @@ def main():
     build_dir.mkdir(parents=True, exist_ok=True)
 
     requested_dirs = tuple(args.include) if args.include else DEFAULT_DIRS
+    if args.no_covers:
+        requested_dirs = tuple(d for d in requested_dirs if d != "covers")
     collect_dirs = []
 
     project_roms = (repo / args.roms_dir).resolve()
@@ -656,12 +736,39 @@ def main():
     if smw_frogfs_built:
         roms_skip_merged = roms_skip_merged | smw_rom_skip_rels
 
+    skip_bios_msx = "msx" not in active_systems
+    if skip_bios_msx:
+        print(
+            "frogfs: omitting bios/msx (no roms/msx tree with game files)",
+            file=sys.stderr,
+        )
+
+    hb_dat_root = (
+        (build_dir / FROGFS_HOMEBREW_EXTRA)
+        if (zelda3_frogfs_built or smw_frogfs_built)
+        and (build_dir / FROGFS_HOMEBREW_EXTRA).is_dir()
+        else None
+    )
     staged_dirs, byteswapped_count = stage_input_dirs(
         collect_dirs,
         build_dir / "input",
         roms_exclude_top=frozenset(roms_exclude),
         roms_skip_rel_paths=roms_skip_merged,
+        skip_bios_msx=skip_bios_msx,
+        frogfs_homebrew_dat_root=hb_dat_root,
+        zelda3_frogfs_built=zelda3_frogfs_built,
+        smw_frogfs_built=smw_frogfs_built,
     )
+
+    if args.rom_compression == "lzma":
+        import rom_frogfs_lzma  # noqa: E402
+
+        rom_staging = build_dir / "input" / "roms"
+        rom_frogfs_lzma.pack_staged_roms(
+            repo,
+            rom_staging,
+            compress_gb_speed=args.compress_gb_speed,
+        )
 
     config_path = build_dir / "frogfs.yaml"
     with config_path.open("w", encoding="utf-8") as config:

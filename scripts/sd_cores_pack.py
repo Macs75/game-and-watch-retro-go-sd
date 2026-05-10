@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import pathlib
 
-# Always bundle: UI logos only on LittleFS. pico8_stub.bin is omitted (placeholder; use real
-# pico8.bin on FrogFS/SD or skip).
-ALWAYS_PACK_REL = frozenset({"logo.bin"})
+# UI logos: built to sd_content/bios/logo.bin (FrogFS /bios when SD_CARD=0, SD path /bios when SD_CARD=1).
+# pico8_stub.bin is omitted (placeholder; use real pico8.bin on FrogFS/SD or skip).
+ALWAYS_PACK_REL = frozenset()
 
 # Never copy these into LittleFS /cores (still produced under sd_content/cores for SD workflows).
 LITTLEFS_EXCLUDE_CORE_RELPATHS = frozenset({"pico8_stub.bin"})

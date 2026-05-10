@@ -41,7 +41,7 @@ retro_logo_image *rg_get_logo(int16_t logo_index) {
         return logo_image_cache[logo_index];
     }
 
-    FILE* file = fopen("/cores/logo.bin", "rb");
+    FILE* file = fopen("/bios/logo.bin", "rb");
     if (!file) {
         printf("Error: unable to open logo file\n");
         return NULL;

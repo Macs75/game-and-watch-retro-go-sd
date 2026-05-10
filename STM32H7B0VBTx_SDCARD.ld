@@ -226,31 +226,6 @@ SECTIONS
     KEEP(*(.sd_fonts_unicode_kanji))
   } > CORES
 
-  .overlay_nes __RAM_EMU_START__ : {
-    . = ALIGN(4);
-    __ram_emu_nes_start__ = .;
-    build/nes/*.o (.data .data* .text .text* .rodata .rodata*)
-    . = ALIGN(4);
-    _OVERLAY_NES_LOAD_END = .;
-  } AT > CORES
-  _OVERLAY_NES_LOAD_START = LOADADDR(.overlay_nes);
-  _OVERLAY_NES_SIZE = SIZEOF(.overlay_nes);
-
-  .overlay_nes_bss _OVERLAY_NES_LOAD_END : {
-    . = ALIGN(4);
-    _OVERLAY_NES_BSS_START = .;
-    build/nes/*.o (.bss .bss*)
-    . = ALIGN(4);
-    build/nes/*.o (COMMON)
-    . = ALIGN(4);
-    _NES_ROM_UNPACK_BUFFER = .;
-    _OVERLAY_NES_BSS_END = .;
-    __ram_emu_nes_end__ = .;
-    ASSERT(ABSOLUTE(_OVERLAY_NES_BSS_END) < __RAM_EMU_END__, "Error: NES BSS overflow");
-  }
-  _OVERLAY_NES_BSS_SIZE = SIZEOF(.overlay_nes_bss);
-  _NES_ROM_UNPACK_BUFFER_SIZE = __RAM_EMU_START__ + __RAM_EMU_LENGTH__ - _NES_ROM_UNPACK_BUFFER;
-
 INCLUDE build/fceumm_mappers.ld
 
   .overlay_nes_fceu __RAM_FCEUMM_START__ : {
