@@ -21,12 +21,27 @@ LARGE_FLASH ?= 0
 SD_CARD ?= 1
 
 # Docker image for reproducible ARM builds (see targets docker, docker_build).
-DOCKER_IMAGE ?= sylverb/retro-go-sd-builder:v1.4
-DOCKER_RUN := docker run --rm -it --privileged --network host \
-	--user $(shell id -u):$(shell id -g) \
-	-v $(CURDIR):/opt/workdir \
-	-v /dev/bus/usb:/dev/bus/usb \
-	$(DOCKER_IMAGE)
+RELEASE_VERSION ?= v1.4
+CONTAINER_NAME ?= retro-go-sd
+DOCKER_IMAGE ?= sylverb/retro-go-sd-builder:$(RELEASE_VERSION)
+DOCKER_RUN := docker run --rm -it \
+    --network host \
+    --name $(CONTAINER_NAME) \
+    --hostname $(CONTAINER_NAME) \
+    --add-host $(CONTAINER_NAME):127.0.0.1 \
+    --user $(shell id -u):$(shell id -g) \
+    -v $(CURDIR):/opt/workdir \
+    --device=/dev/bus/usb \
+    $(DOCKER_IMAGE)
+
+# Set DOCKER=1 to run build/flash/release targets inside the container rather than locally.
+# docker_build and docker_shell are always Docker-specific and unaffected by this flag.
+DOCKER ?= 0
+# Forward all user-specified variables to the inner make, minus DOCKER itself.
+_DOCKER_FWDVARS := $(filter-out DOCKER=%,$(MAKEOVERRIDES))
+
+# Docker bulid args
+ARM_COMPILER_VERSION ?= 15.2.rel1
 
 # Configure where data is stored in the external flash by
 # setting EXTFLASH_OFFSET. Useful if the first 1MB/4MB are to be preserved.
@@ -367,8 +382,18 @@ Core/Src/retro-go/i18n/rg_i18n.c \
 Core/Src/retro-go/rg_logos.c
 
 # Version and URL for the STM32CubeH7 SDK
-SDK_VERSION ?= v1.11.1
+SDK_VERSION ?= v1.13.0
 SDK_URL ?= https://raw.githubusercontent.com/STMicroelectronics/STM32CubeH7
+
+# Submodule repos (used from v1.12.0+)
+# Check https://htmlpreview.github.io/?https://github.com/STMicroelectronics/STM32CubeH7/blob/master/Release_Notes.html
+# page to find about new releases and Drivers version section to find correct
+# CMSIS_DEVICE_VERSION (STM32H7xx CMSIS) and HAL_DRIVER_VERSION (STM32H7xx HAL)
+CMSIS_DEVICE_VERSION ?= v1.10.7
+CMSIS_DEVICE_URL ?= https://raw.githubusercontent.com/STMicroelectronics/cmsis-device-h7
+
+HAL_DRIVER_VERSION ?= v1.11.6
+HAL_DRIVER_URL ?= https://raw.githubusercontent.com/STMicroelectronics/stm32h7xx-hal-driver
 
 # Local path for the SDK
 SDK_DIR ?= Drivers
@@ -424,6 +449,7 @@ SDK_HEADERS = \
 Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h7b0xx.h \
 Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h7xx.h \
 Drivers/CMSIS/Device/ST/STM32H7xx/Include/system_stm32h7xx.h \
+Drivers/CMSIS/Include/cachel1_armv7.h \
 Drivers/CMSIS/Include/cmsis_compiler.h \
 Drivers/CMSIS/Include/cmsis_gcc.h \
 Drivers/CMSIS/Include/cmsis_version.h \
@@ -670,12 +696,17 @@ LDFLAGS += $(MCU) -specs=nano.specs -T$(LDSCRIPT) $(LIBDIR) $(LIBS) $(CXXLIBS) -
 LDFLAGS += -Wl,--wrap=fflush
 
 # default action: build all (FrogFS has no gw_*_extflash.bin payload — flash frogfs.bin instead)
+ifeq ($(DOCKER),1)
+all: FORCE
+	$(V)$(DOCKER_RUN) $(MAKE) -j$$(nproc) all $(_DOCKER_FWDVARS) CHECK_DIRTY_SUBMODULE=0
+else
 all: CheckTools CheckDirtySubmodules $(BUILD_DIR) $(BUILD_DIR)/$(TARGET).elf $(BUILD_DIR)/$(TARGET)_intflash.bin $(BUILD_DIR)/$(TARGET)_intflash2.bin
 ifneq ($(SD_CARD),0)
 all: $(BUILD_DIR)/$(TARGET)_extflash.bin
 endif
 ifeq ($(SD_CARD),0)
 all: $(FROGFS_IMAGE)
+endif
 endif
 
 #######################################
@@ -1120,11 +1151,20 @@ start:  # Start code located at INTFLASH_ADDRESS
 .PHONY: start
 
 
+ifeq ($(DOCKER),1)
+flash_intflash: FORCE
+	$(V)$(DOCKER_RUN) $(MAKE) flash_intflash $(_DOCKER_FWDVARS) CHECK_DIRTY_SUBMODULE=0
+else
 flash_intflash: $(BUILD_DIR)/$(TARGET)_intflash.bin
 	$(GNWMANAGER) flash $(INTFLASH_ADDRESS) $< -- start $(INTFLASH_ADDRESS)
+endif
 .PHONY: flash_intflash
 
 
+ifeq ($(DOCKER),1)
+flash_extflash: FORCE
+	$(V)$(DOCKER_RUN) $(MAKE) flash_extflash $(_DOCKER_FWDVARS) CHECK_DIRTY_SUBMODULE=0
+else
 flash_extflash:
 ifeq ($(SD_CARD), 0)
 	@$(MAKE) --no-print-directory $(FROGFS_IMAGE) $(LITTLEFS_IMAGE)
@@ -1132,9 +1172,14 @@ ifeq ($(SD_CARD), 0)
 		-- flash ext $(LITTLEFS_IMAGE) --offset=$(FILESYSTEM_FLASH_OFFSET) \
 		-- start $(INTFLASH_ADDRESS)
 endif
+endif
 .PHONY: flash_extflash
 
 # Programs both the external and internal flash.
+ifeq ($(DOCKER),1)
+flash: FORCE
+	$(V)$(DOCKER_RUN) $(MAKE) flash $(_DOCKER_FWDVARS) CHECK_DIRTY_SUBMODULE=0
+else
 flash: CheckTools CheckDirtySubmodules $(BUILD_DIR)/$(TARGET)_intflash.bin $(if $(filter-out 0,$(SD_CARD)),$(BUILD_DIR)/$(TARGET)_extflash.bin,)
 ifeq ($(SD_CARD), 0)
 	@$(MAKE) --no-print-directory $(FROGFS_IMAGE) $(LITTLEFS_IMAGE)
@@ -1147,6 +1192,7 @@ else
 	@$(GNWMANAGER) flash $(INTFLASH_ADDRESS) $(BUILD_DIR)/$(TARGET)_intflash.bin \
 		-- start $(INTFLASH_ADDRESS) \
 		$(RESET_DBGMCU_CMD)
+endif
 endif
 .PHONY: flash
 
@@ -1307,7 +1353,7 @@ $(FROGFS_IMAGE): create_sd_data scripts/gen_frogfs_image.py scripts/rom_frogfs_l
 frogfs_image: $(FROGFS_IMAGE)
 .PHONY: frogfs_image
 
-$(LITTLEFS_IMAGE): create_sd_data scripts/gen_littlefs_image.py scripts/sd_cores_pack.py scripts/pico8_gnw_cores.py
+$(LITTLEFS_IMAGE): create_sd_data scripts/gen_littlefs_image.py scripts/sd_cores_pack.py scripts/nes_rom_mappers.py scripts/pico8_gnw_cores.py
 	$(V)$(PYTHON3) scripts/gen_littlefs_image.py \
 		--sd-content $(SD_FOLDER) \
 		--output $@ \
@@ -1319,6 +1365,10 @@ $(LITTLEFS_IMAGE): create_sd_data scripts/gen_littlefs_image.py scripts/sd_cores
 littlefs_image: $(LITTLEFS_IMAGE)
 .PHONY: littlefs_image
 
+ifeq ($(DOCKER),1)
+flash_sd: FORCE
+	$(V)$(DOCKER_RUN) $(MAKE) flash_sd $(_DOCKER_FWDVARS) CHECK_DIRTY_SUBMODULE=0
+else
 flash_sd: CheckTools CheckDirtySubmodules $(BUILD_DIR)/$(TARGET)_intflash.bin create_sd_data
 	$(eval MAPPERS_SDPUSH := $(foreach mapper,$(MAPPER_NAMES),-- sdpush --file $(MAPPERS_DIR)/mapper_$(mapper).bin --dest-path "/cores/mappers/"))
 	@$(GNWMANAGER) flash $(INTFLASH_ADDRESS) $(BUILD_DIR)/$(TARGET)_intflash.bin \
@@ -1350,20 +1400,40 @@ flash_sd: CheckTools CheckDirtySubmodules $(BUILD_DIR)/$(TARGET)_intflash.bin cr
 		$(MAPPERS_SDPUSH) \
 		-- start $(INTFLASH_ADDRESS) \
 		$(RESET_DBGMCU_CMD)
+endif
 
 firmware_update: create_sd_folders
 	@$(MAKE) -j$(nproc) -C external/firmware_update
 	@cp external/firmware_update/build/firmware_update.bin $(RELEASE_FOLDER)/
 
-# this is creating a release folder with update archive and update application
+# Release is SD_CARD=1 only; SD_CARD=0 builds require proprietary blobs and
+# cannot produce a distributable release package.
+ifeq ($(DOCKER),1)
+release: FORCE
+ifeq ($(SD_CARD),0)
+	$(error release target requires SD_CARD=1)
+endif
+	$(V)$(DOCKER_RUN) $(MAKE) -j$$(nproc) release $(_DOCKER_FWDVARS) CHECK_DIRTY_SUBMODULE=0
+else
 release: CheckTools CheckDirtySubmodules $(BUILD_DIR)/$(TARGET)_intflash.bin create_sd_data firmware_update
+ifeq ($(SD_CARD),0)
+	$(error release target requires SD_CARD=1; SD_CARD=0 builds require proprietary blobs and cannot produce a distributable release)
+endif
 	@tar --format=ustar -cf $(RELEASE_FOLDER)/gw_update.tar -C sd_content $$(find sd_content -mindepth 1 -maxdepth 1 -exec basename {} \;)
 	@./scripts/gen_release_package.sh
+endif
+.PHONY: release
 
+ifeq ($(DOCKER),1)
+release_sdpush: FORCE
+	$(V)$(DOCKER_RUN) $(MAKE) release_sdpush $(_DOCKER_FWDVARS) CHECK_DIRTY_SUBMODULE=0
+else
 release_sdpush: release
 	@$(GNWMANAGER) sdpush --file $(RELEASE_FOLDER)/retro-go_update.bin --dest-path "/" \
 		-- start bank1 \
 		$(RESET_DBGMCU_CMD)
+endif
+.PHONY: release_sdpush
 
 monitor:
 	@$(GNWMANAGER) monitor --utf8
@@ -1409,20 +1479,25 @@ dump_screenshot:
 .PHONY: dump_screenshot
 
 docker_build:
-	$(V)docker build --network=host -f Dockerfile --tag $(DOCKER_IMAGE) .
+	$(V)docker build --network=host --build-arg ARM_COMPILER_VERSION=$(ARM_COMPILER_VERSION) -f Dockerfile --tag $(DOCKER_IMAGE) .
 .PHONY: docker_build
 
+# DEPRECATED: use 'make release DOCKER=1' (SD_CARD=1) or 'make docker_shell' instead.
+# This target will be removed in a future release.
 docker:
+	@echo "WARNING: 'make docker' is deprecated."
+	@echo "  Use 'make release DOCKER=1' for a containerized release build (SD_CARD=1)."
+	@echo "  Use 'make docker_shell' for an interactive shell in the container."
 ifeq ($(SD_CARD),0)
-	$(V)$(DOCKER_RUN) bash -l
+	$(V)$(DOCKER_RUN) bash
 else
-	$(V)$(DOCKER_RUN) bash -l -c "make -j\$$(nproc) CHECK_DIRTY_SUBMODULE=0 COVERFLOW=1 SHARED_HIBERNATE_SAVESTATE=1 DISABLE_SPLASH_SCREEN=1 INTFLASH_BANK=2 CHEAT_CODES=1 ZH_CN=1 ZH_TW=1 KO_KR=1 JA_JP=1 release"
+	$(V)$(DOCKER_RUN) bash -c "make -j\$$(nproc) CHECK_DIRTY_SUBMODULE=0 COVERFLOW=1 SHARED_HIBERNATE_SAVESTATE=1 DISABLE_SPLASH_SCREEN=1 INTFLASH_BANK=2 CHEAT_CODES=1 ZH_CN=1 ZH_TW=1 KO_KR=1 JA_JP=1 release"
 endif
 .PHONY: docker
 
 # Interactive shell without building release (handy when SD_CARD=1 but you only want the container).
 docker_shell:
-	$(V)$(DOCKER_RUN) bash -l
+	$(V)$(DOCKER_RUN) bash
 .PHONY: docker_shell
 
 help:
@@ -1510,9 +1585,13 @@ help:
 	@echo "  SINGLE_FONT=$(SINGLE_FONT)"
 	@echo ""
 	@echo "Targets:"
-	@echo "  docker            - SD_CARD=0: interactive shell in $(DOCKER_IMAGE); SD_CARD=1: run preset release build inside container"
-	@echo "  docker_shell      - Interactive shell in $(DOCKER_IMAGE) (no preset make; same mounts as docker)"
-	@echo "  docker_build      - Builds a docker image"
+	@echo "  make [target]         - Run target locally (default: build firmware)"
+	@echo "  make [target] DOCKER=1 - Run target inside the Docker container instead."
+	@echo "                        Applies to: (default), flash, flash_intflash, flash_extflash,"
+	@echo "                        flash_sd, release, release_sdpush."
+	@echo "  docker_build          - Build the Docker container image"
+	@echo "  docker_shell          - Interactive shell in $(DOCKER_IMAGE)"
+	@echo "  docker (deprecated)   - Use 'make release DOCKER=1' or 'make docker_shell' instead"
 	@echo "  dump_screenshot   - Downloads the stored screenshot."
 	@echo "  flash             - Programs the internal and external flash"
 	@echo "  flash_all         - Alias for 'flash' (deprecated)"
@@ -1530,8 +1609,18 @@ help:
 #######################################
 # download SDK files
 #######################################
+Drivers/STM32H7xx_HAL_Driver/%:
+	$(V)$(ECHO) [ WGET STM32CubeH7 HAL ] $(notdir $@)
+	$(V)mkdir -p $(dir $@)
+	$(V)wget -q $(HAL_DRIVER_URL)/$(HAL_DRIVER_VERSION)/$* -O $@
+
+Drivers/CMSIS/Device/ST/STM32H7xx/%:
+	$(V)$(ECHO) [ WGET STM32CubeH7 CMSIS ] $(notdir $@)
+	$(V)mkdir -p $(dir $@)
+	$(V)wget -q $(CMSIS_DEVICE_URL)/$(CMSIS_DEVICE_VERSION)/$* -O $@
+
 $(SDK_DIR)/%:
-	$(V)$(ECHO) [ WGET ] $(notdir $@)
+	$(V)$(ECHO) [ WGET STM32CubeH7 ] $(notdir $@)
 	$(V)wget -q $(SDK_URL)/$(SDK_VERSION)/$@ -P $(dir $@)
 
 .PHONY: download_sdk
