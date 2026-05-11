@@ -310,6 +310,20 @@ void lcd_setup_framebuffers(lcd_mode_t mode)
   HAL_LTDC_SetPixelFormat(&hltdc, pixel_format, 0);
   HAL_LTDC_SetAddress(&hltdc, (uint32_t)fb1, 0);
   HAL_LTDC_Reload(&hltdc, LTDC_RELOAD_VERTICAL_BLANKING);
+
+  /* MPU follow-up: re-cover the LCD pool so only the active framebuffer
+   * region stays uncached. In LUT8 mode the 146 KB bonus area becomes
+   * cacheable Normal memory, which is essential if cold engine code or
+   * the engine's TLSF pool lives there. The framebuffer footprint must
+   * stay uncached so LTDC sees CPU writes immediately. */
+  uint32_t fb_footprint = (mode == LCD_MODE_LUT8)
+      ? (uint32_t)(2 * GW_LCD_WIDTH * GW_LCD_HEIGHT)        /* 154 KB */
+      : (uint32_t)(2 * GW_LCD_WIDTH * GW_LCD_HEIGHT * 2);   /* 300 KB */
+  HAL_MPU_Disable();
+  mpu_set_lcd_pool_uncached_range(fb_footprint);
+  HAL_MPU_Enable(MPU_HFNMI_PRIVDEF);
+  __DSB();
+  __ISB();
 }
 
 void lcd_get_bonus_pool(uint8_t **out_ptr, size_t *out_size)

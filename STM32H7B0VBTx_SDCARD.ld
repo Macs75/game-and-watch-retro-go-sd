@@ -598,9 +598,27 @@ INCLUDE build/fceumm_mappers.ld
 
      Stub is tiny but the SAME VMA must be used for the runtime-loaded
      pico8.bin so the engine's link-time RAM references resolve correctly.
-     Keep _PICO8_HIGH_RESERVE in sync with the SD repo's linker script. */
-  _PICO8_HIGH_RESERVE = 168 * 1024;
-  __overlay_pico8_vma = __RAM_EMU_END__ - _PICO8_HIGH_RESERVE;
+
+     Layout — engine lives at the LOW end of the LCD bonus area:
+       __RAM_UC_START__              = 0x24000000
+       _PICO8_FB_OFFSET (LUT8 fb)    = 0x025800   (154 KB)
+       __overlay_pico8_vma           = 0x24026800
+       engine end (BSS_END, varies)
+       TLSF main pool starts here, runs to __RAM_EMU_END__ = 0x24100000
+
+     The LCD MUST be in LUT8 mode when pico8.bin is loaded into this
+     range, otherwise the load overwrites the active RGB565 framebuffer.
+     rg_emulators.c calls lcd_setup_framebuffers(LCD_MODE_LUT8) before
+     load_core_bin_with_header("/cores/pico8.bin", ...).
+
+     Why a fixed low-end address: GPL never has to know the engine's
+     size. The engine's own entry trampoline zeroes BSS at startup
+     (equivalent of crt0), and the SD-side main_pico8.c computes the
+     TLSF pool from _OVERLAY_PICO8_BSS_END..__RAM_EMU_END__. So the
+     engine can grow freely without anyone rebuilding GPL — only the
+     SD binaries need updating. */
+  _PICO8_FB_OFFSET = 2 * 320 * 240;          /* LUT8 framebuffer = 154 KB */
+  __overlay_pico8_vma = __RAM_UC_START__ + _PICO8_FB_OFFSET;
 
   .overlay_pico8 __overlay_pico8_vma : {
     . = ALIGN(4);
@@ -623,7 +641,8 @@ INCLUDE build/fceumm_mappers.ld
     build/pico8/*.o (COMMON)
     __ram_emu_pico8_end__ = .;
     _OVERLAY_PICO8_BSS_END = .;
-    ASSERT(ABSOLUTE(_OVERLAY_PICO8_BSS_END) < __RAM_EMU_END__, "Error: PICO8 BSS overflow");
+    ASSERT(ABSOLUTE(_OVERLAY_PICO8_BSS_END) <= __RAM_EMU_END__,
+           "Error: PICO8 engine + BSS would overflow RAM_EMU and leave no room for the TLSF pool");
   }
   _OVERLAY_PICO8_BSS_SIZE = SIZEOF(.overlay_pico8_bss);
 
