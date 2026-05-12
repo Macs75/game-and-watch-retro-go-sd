@@ -200,8 +200,12 @@ static bool GLOBAL_DATA lang_update_cb(odroid_dialog_choice_t *option, odroid_di
         lang = odroid_settings_get_next_lang(lang);
         odroid_settings_lang_set(lang);
     }
-    curr_lang = (lang_t *)gui_lang[lang];
-    sprintf(option->value, "%s", curr_lang->s_LangName);
+    curr_lang = i18n_load_language(lang);
+    /* Use the baked native name from lang_metadata so the menu reads
+     * correctly even when /lang/xx_xx.bin is missing (i18n_load_language
+     * falls back to en_us in that case, and curr_lang->s_LangName would
+     * always print "English" — confusing). */
+    sprintf(option->value, "%s", i18n_lang_display_name(lang));
     return event == ODROID_DIALOG_ENTER;
 }
 

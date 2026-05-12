@@ -410,42 +410,19 @@ uint8_t get_font() {
 
 /* overlay_buffer removed — all drawing goes directly to LCD framebuffer */
 
-const lang_t *gui_lang[] = {
-    &lang_en_us,
-#if INCLUDED_ES_ES == 1
-    &lang_es_es,
-#endif
-#if INCLUDED_PT_PT == 1
-    &lang_pt_pt,
-#endif
-#if INCLUDED_FR_FR == 1
-    &lang_fr_fr,
-#endif
-#if INCLUDED_IT_IT == 1
-    &lang_it_it,
-#endif
-#if INCLUDED_DE_DE == 1
-    &lang_de_de,
-#endif
-#if INCLUDED_RU_RU == 1
-    &lang_ru_ru,
-#endif
-#if INCLUDED_ZH_CN == 1
-    &lang_zh_cn,
-#endif
-#if INCLUDED_ZH_TW == 1
-    &lang_zh_tw,
-#endif
-#if INCLUDED_KO_KR == 1
-    &lang_ko_kr,
-#endif
-#if INCLUDED_JA_JP == 1
-    &lang_ja_jp,
-#endif
-};
+/* gui_lang[] removed — was an array of pointers to the per-language
+ * lang_xx_xx static structs (each ~860 bytes of rodata + ~2 KB of
+ * translated strings). Replaced by lang_metadata[] below for compile-
+ * time descriptors (codepage, fn pointers, display name) and by
+ * i18n_load_language() for the strings themselves (loaded from SD
+ * at runtime).
+ *
+ * Once gui_lang[] is gone, the 9 non-en_us lang_xx_xx static structs
+ * are unreferenced and the linker's --gc-sections drops them, freeing
+ * ~18 KB of intflash. lang_en_us stays because it's the baked
+ * fallback inside i18n_load_language(). */
 
 lang_t *curr_lang = &lang_en_us;
-const int gui_lang_count = sizeof(gui_lang) / sizeof(*gui_lang);
 
 /* ──── SD-backed i18n: runtime-loaded language strings ────────────────────
  *
@@ -485,8 +462,9 @@ typedef struct {
                    uint16_t hour, uint16_t minutes, uint16_t seconds);
 } lang_metadata_t;
 
-/* Order MUST match gui_lang[] above so external lang_idx maps to the
- * same entry in both arrays. */
+/* The order here is the user-facing language index (persisted as
+ * `lang` in odroid settings). Changing the order or removing an
+ * entry shifts every saved selection, so prefer appending. */
 static const lang_metadata_t lang_metadata[] = {
     { 1252, "/lang/en_us.bin", "English",
       en_us_fmt_Title_Date_Format, en_us_fmt_Date, en_us_fmt_Time },
@@ -653,6 +631,20 @@ lang_t *i18n_load_language(int idx)
     printf("i18n_load: '%s' loaded %u strings (%ld bytes)\n",
            m->bin_path, to_read, strings_size);
     return &lang_active;
+}
+
+/* Public count of languages available at this build (replaces what
+ * sizeof(gui_lang)/sizeof(*gui_lang) used to compute). */
+const int gui_lang_count = (int)(sizeof(lang_metadata) / sizeof(*lang_metadata));
+
+/* Native display name for the menu — usable BEFORE i18n_load_language
+ * runs (no SD touch). Returns "?" for an out-of-range idx so the menu
+ * doesn't crash on a corrupt setting. */
+const char *i18n_lang_display_name(int idx)
+{
+    if (idx < 0 || idx >= gui_lang_count)
+        return "?";
+    return lang_metadata[idx].display_name;
 }
 
 

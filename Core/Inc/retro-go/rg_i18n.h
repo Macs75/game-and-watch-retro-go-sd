@@ -15,7 +15,6 @@ void set_font(uint8_t font_index);
 uint8_t get_font();
 
 extern lang_t* curr_lang;
-extern const lang_t* gui_lang[];
 extern const int gui_lang_count;
 
 /* Load a language's strings from /lang/xx_xx.bin (built by
@@ -26,6 +25,11 @@ extern const int gui_lang_count;
  * assign the result to curr_lang. Safe to call repeatedly; each call
  * realloc()s the strings buffer in place. */
 lang_t *i18n_load_language(int idx);
+
+/* Native display name for the language at `idx` ("English", "Deutsch",
+ * "日本語", etc.). Safe to call before any SD i/o — used by the menu
+ * to list available languages without loading their strings. */
+const char *i18n_lang_display_name(int idx);
 
 int i18n_get_text_height();
 

@@ -197,8 +197,9 @@ void odroid_settings_init()
     gui_apply_colors_to_overlay_clut();
     //set font
     set_font(odroid_settings_font_get());
-    //set lang
-    curr_lang = (lang_t *)gui_lang[odroid_settings_lang_get()];
+    //set lang — load strings from /lang/xx_xx.bin on SD, fall back to
+    //  baked lang_en_us if the file is missing or corrupt.
+    curr_lang = i18n_load_language(odroid_settings_lang_get());
 }
 
 void odroid_settings_commit()
@@ -342,29 +343,20 @@ void odroid_settings_turbo_buttons_set(int8_t turbo_buttons)
 
 int8_t odroid_settings_get_next_lang(uint8_t cur)
 {
-    lang_t* next_lang = NULL;
-    int ret = cur;
-    while (!next_lang)
-    {
-        ret ++;
-        if (ret >= gui_lang_count)
-            ret = 0;
-        next_lang = (lang_t *)gui_lang[ret];
-    }
+    /* gui_lang[] removed — all entries were non-NULL (only present-when-
+     * INCLUDED languages were in the array), so the original while-loop
+     * always exited on its first iteration. Reduce to simple wrap. */
+    int ret = cur + 1;
+    if (ret >= gui_lang_count)
+        ret = 0;
     return ret;
 }
 
 int8_t odroid_settings_get_prior_lang(uint8_t cur)
 {
-    lang_t* prior_lang = NULL;
-    int ret = cur;
-    while (!prior_lang)
-    {
-        ret --;
-        if (ret < 0)
-            ret = gui_lang_count - 1;
-        prior_lang = (lang_t *)gui_lang[ret];
-    }
+    int ret = (int)cur - 1;
+    if (ret < 0)
+        ret = gui_lang_count - 1;
     return ret;
 }
 
