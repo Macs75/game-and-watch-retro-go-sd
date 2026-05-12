@@ -631,12 +631,17 @@ lang_t *i18n_load_language(int idx)
     fclose(f);
 
     /* Populate lang_active. Start from baked en_us so any field missing
-     * from the .bin still has a sane (English) pointer. */
+     * from the .bin still has a sane (English) pointer.
+     *
+     * codepage and fn pointers are declared `const` in lang_t (so static
+     * initializers like lang_en_us are read-only). Cast away const at
+     * the write sites — runtime mutation is the whole point of having
+     * lang_active live in RAM. */
     memcpy(&lang_active, &lang_en_us, sizeof(lang_t));
-    lang_active.codepage              = m->codepage;
-    lang_active.fmt_Title_Date_Format = m->fmt_Title_Date_Format;
-    lang_active.fmtDate               = m->fmtDate;
-    lang_active.fmtTime               = m->fmtTime;
+    *(uint32_t *)&lang_active.codepage = m->codepage;
+    *(void **)&lang_active.fmt_Title_Date_Format = (void *)m->fmt_Title_Date_Format;
+    *(void **)&lang_active.fmtDate               = (void *)m->fmtDate;
+    *(void **)&lang_active.fmtTime               = (void *)m->fmtTime;
 
     const char **strings = (const char **)&lang_active.s_LangUI;
     for (uint16_t i = 0; i < to_read; i++) {
