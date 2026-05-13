@@ -473,19 +473,19 @@ static const lang_metadata_t lang_metadata[] = {
     { 1252, NULL, "English",
       en_us_fmt_Title_Date_Format, en_us_fmt_Date, en_us_fmt_Time },
 #if INCLUDED_ES_ES == 1
-    { 1252, "/lang/es_es.bin", "Español",
+    { 1252, "/lang/es_es.bin", "Spanish",
       es_es_fmt_Title_Date_Format, es_es_fmt_Date, es_es_fmt_Time },
 #endif
 #if INCLUDED_PT_PT == 1
-    { 1252, "/lang/pt_pt.bin", "Português",
+    { 1252, "/lang/pt_pt.bin", "Portuguese",
       pt_pt_fmt_Title_Date_Format, pt_pt_fmt_Date, pt_pt_fmt_Time },
 #endif
 #if INCLUDED_FR_FR == 1
-    { 1252, "/lang/fr_fr.bin", "Français",
+    { 1252, "/lang/fr_fr.bin", "French",
       fr_fr_fmt_Title_Date_Format, fr_fr_fmt_Date, fr_fr_fmt_Time },
 #endif
 #if INCLUDED_IT_IT == 1
-    { 1252, "/lang/it_it.bin", "Italiano",
+    { 1252, "/lang/it_it.bin", "Italian",
       it_it_fmt_Title_Date_Format, it_it_fmt_Date, it_it_fmt_Time },
 #endif
 #if INCLUDED_DE_DE == 1
@@ -493,23 +493,23 @@ static const lang_metadata_t lang_metadata[] = {
       de_de_fmt_Title_Date_Format, de_de_fmt_Date, de_de_fmt_Time },
 #endif
 #if INCLUDED_RU_RU == 1
-    { 1251, "/lang/ru_ru.bin", "Русский",
+    { 1251, "/lang/ru_ru.bin", "Russian",
       ru_ru_fmt_Title_Date_Format, ru_ru_fmt_Date, ru_ru_fmt_Time },
 #endif
 #if INCLUDED_ZH_CN == 1
-    {  936, "/lang/zh_cn.bin", "简体中文",
+    {  936, "/lang/zh_cn.bin", "Simplified Chinese",
       zh_cn_fmt_Title_Date_Format, zh_cn_fmt_Date, zh_cn_fmt_Time },
 #endif
 #if INCLUDED_ZH_TW == 1
-    {  950, "/lang/zh_tw.bin", "繁體中文",
+    {  950, "/lang/zh_tw.bin", "Traditional Chinese",
       zh_tw_fmt_Title_Date_Format, zh_tw_fmt_Date, zh_tw_fmt_Time },
 #endif
 #if INCLUDED_KO_KR == 1
-    {  949, "/lang/ko_kr.bin", "한국어",
+    {  949, "/lang/ko_kr.bin", "Korean",
       ko_kr_fmt_Title_Date_Format, ko_kr_fmt_Date, ko_kr_fmt_Time },
 #endif
 #if INCLUDED_JA_JP == 1
-    {  932, "/lang/ja_jp.bin", "日本語",
+    {  932, "/lang/ja_jp.bin", "Japanese",
       ja_jp_fmt_Title_Date_Format, ja_jp_fmt_Date, ja_jp_fmt_Time },
 #endif
 };

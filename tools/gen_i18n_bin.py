@@ -50,6 +50,19 @@ INIT_FIELD_RE = re.compile(
     r'^\s*\.s_(\w+)\s*=\s*"((?:[^"\\]|\\.)*)"\s*,?\s*(?://.*)?$'
 )
 
+# C block comment, non-greedy across newlines.
+BLOCK_COMMENT_RE = re.compile(r'/\*.*?\*/', re.DOTALL)
+
+
+def _strip_block_comments(text: str) -> str:
+    """Remove `/* ... */` blocks but preserve line numbering so any later
+    error message still points at the right source line. Each comment is
+    replaced with the same count of newlines it contained.
+    """
+    def repl(m: re.Match) -> str:
+        return '\n' * m.group(0).count('\n')
+    return BLOCK_COMMENT_RE.sub(repl, text)
+
 
 def parse_header_field_order(path: Path) -> list[str]:
     """Return the ordered list of `s_XXX` field names declared in lang_t.
@@ -61,7 +74,8 @@ def parse_header_field_order(path: Path) -> list[str]:
     fields = []
     seen = set()
     in_struct = False
-    for line in path.read_text(encoding='utf-8').splitlines():
+    text = _strip_block_comments(path.read_text(encoding='utf-8'))
+    for line in text.splitlines():
         stripped = line.strip()
         if not in_struct:
             if stripped.startswith('typedef struct'):
@@ -146,7 +160,8 @@ def decode_c_string(raw: str) -> str:
 def parse_lang_strings(path: Path) -> dict[str, str]:
     """Return {field_name: decoded_python_string} for the .c file."""
     result = {}
-    for line in path.read_text(encoding='utf-8').splitlines():
+    text = _strip_block_comments(path.read_text(encoding='utf-8'))
+    for line in text.splitlines():
         m = INIT_FIELD_RE.match(line)
         if not m:
             continue
@@ -214,8 +229,9 @@ def build_blob(field_order: list[str],
 
     expected_size = header_size + data_size
     assert len(out) == expected_size, (len(out), expected_size)
-    print(f'  {count} fields, {fell_back} fell back to en_us, '
-          f'{missing} missing, payload = {len(out)} bytes', file=sys.stderr)
+    build_blob.last_stats = (
+        f'{count} fields, {fell_back} fell back to en_us, '
+        f'{missing} missing, payload = {len(out)} bytes')
     return bytes(out)
 
 
@@ -232,7 +248,6 @@ def main() -> int:
                    help='output .bin path')
     args = p.parse_args()
 
-    print(f'gen_i18n_bin: {args.lang.name} -> {args.output}', file=sys.stderr)
     field_order = parse_header_field_order(args.header)
     en_us = parse_lang_strings(args.en_us)
     lang = parse_lang_strings(args.lang) if args.lang != args.en_us else en_us
@@ -240,6 +255,12 @@ def main() -> int:
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_bytes(blob)
+
+    # Emit start + result as ONE write so concurrent `make -jN` invocations
+    # don't interleave each other's lines.
+    sys.stderr.write(
+        f'gen_i18n_bin: {args.lang.name} -> {args.output}\n'
+        f'  {build_blob.last_stats}\n')
     return 0
 
 
