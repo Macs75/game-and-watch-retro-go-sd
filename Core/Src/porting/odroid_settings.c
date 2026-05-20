@@ -216,14 +216,9 @@ void odroid_settings_commit()
         }
     }
 
-    /* Settings dialog has just closed. Free any parked strings buffers
-     * from intermediate language switches the user did while
-     * navigating the lang menu — by now the dialog's local options[]
-     * array (which captured curr_lang->s_X label pointers into those
-     * buffers) is gone, so it's safe. Then ensure curr_lang points at
-     * the final committed selection (i18n_load_language caches by idx,
-     * so this is a no-op if the user didn't change languages). */
-    i18n_release_stale_buffers();
+    /* Settings dialog has just closed. Re-loading the committed
+     * language is a cache hit when the user landed back on the same
+     * idx they entered with (i18n_load_language caches per-idx). */
     curr_lang = i18n_load_language(odroid_settings_lang_get());
 }
 

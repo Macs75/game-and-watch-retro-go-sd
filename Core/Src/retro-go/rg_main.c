@@ -205,11 +205,10 @@ static bool GLOBAL_DATA lang_update_cb(odroid_dialog_choice_t *option, odroid_di
      * state) live-update as the user navigates languages.
      *
      * Captured options[i].label pointers from the dialog's local
-     * choices array stay valid because i18n_load_language() does NOT
-     * reuse the underlying strings buffer — it parks each previous
-     * buffer in lang_stale_bufs[] and only frees them in batch from
-     * odroid_settings_commit(), which runs after this dialog has
-     * returned. */
+     * choices array stay valid because i18n_load_language() caches
+     * each language's strings buffer per-idx and never frees it for
+     * the session — even after the user has cycled through every
+     * language in the menu. */
     curr_lang = i18n_load_language(lang);
     /* Use the baked native name from lang_metadata for the lang
      * option's own value so it reads correctly even when this
