@@ -1437,8 +1437,9 @@ static bool show_preview_cb(odroid_dialog_choice_t *option, odroid_dialog_event_
         {
             FILE *file = fopen(slot->preview,"rb");
             if (file != NULL) {
-                fread(lcd_get_active_buffer(), sizeof(framebuffer1), 1, file);
-                memcpy(lcd_get_inactive_buffer(),lcd_get_active_buffer(),sizeof(framebuffer1));
+                size_t frame_size = lcd_get_frame_size();
+                fread(lcd_get_active_buffer(), 1, frame_size, file);
+                memcpy(lcd_get_inactive_buffer(), lcd_get_active_buffer(), frame_size);
                 fclose(file);
             }
         }
