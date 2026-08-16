@@ -262,6 +262,10 @@ int main(void)
   uint8_t trigger_wdt_bsod = 0;
   uint8_t boot_mode = BOOT_MODE_APP;
 
+#ifdef REMOTE_INPUT
+  *(volatile uint32_t *)SRAM_REMOTE_INPUT_ADDR = 0;
+#endif
+
 #if 0
   for(int i = 0; i < 1000000; i++) {
     __NOP();
@@ -1243,10 +1247,13 @@ __attribute__((optimize("-O0"))) static void MPU_Config(void)
   HAL_MPU_Disable();
   /** Initializes and configures the Region and the memory to be protected
   */
+  /* Last 8 KB of AHB SRAM: .audio DMA buffer (see __AHBRAM_AUDIO_RESERVE__ in
+   * the linker script). Must stay non-cacheable for SAI DMA coherence.
+   * The ~120 KB below is cacheable via PRIVDEF. */
   MPU_InitStruct.Enable = MPU_REGION_ENABLE;
   MPU_InitStruct.Number = MPU_REGION_NUMBER0;
-  MPU_InitStruct.BaseAddress = 0x30000000;
-  MPU_InitStruct.Size = MPU_REGION_SIZE_128KB;
+  MPU_InitStruct.BaseAddress = (uint32_t)&__ahbram_audio_start__;
+  MPU_InitStruct.Size = MPU_REGION_SIZE_8KB;
   MPU_InitStruct.SubRegionDisable = 0x0;
   MPU_InitStruct.TypeExtField = MPU_TEX_LEVEL0;
   MPU_InitStruct.AccessPermission = MPU_REGION_FULL_ACCESS;

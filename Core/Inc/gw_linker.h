@@ -5,6 +5,7 @@
 extern uint8_t __EXTFLASH_START__;
 extern uint8_t __EXTFLASH_END__;
 extern uint8_t __EXTFLASH_BASE__;
+extern uint8_t __EXTFLASH_OFFSET__;  // Bytes reserved at the bottom of extflash by the chainloader (its --defsym value). Read as (uint32_t)&__EXTFLASH_OFFSET__.
 extern uint8_t __FILESYSTEM_START__;
 extern uint8_t __FILESYSTEM_END__;
 extern uint32_t __INTFLASH__;  // From linker, usually value 0x08000000 for bank 1, or 0x08100000 for bank 2
@@ -78,6 +79,7 @@ extern uint8_t _OVERLAY_WSV_BSS_SIZE;
 extern void * _OVERLAY_MD_LOAD_START[];
 extern uint8_t _OVERLAY_MD_SIZE;
 extern void * _OVERLAY_MD_BSS_START[];
+extern void * _OVERLAY_MD_BSS_END[];
 extern uint8_t _OVERLAY_MD_BSS_SIZE;
 extern void * _OVERLAY_A7800_LOAD_START[];
 extern uint8_t _OVERLAY_A7800_SIZE;
@@ -144,6 +146,11 @@ extern uint8_t *_PCE_ROM_UNPACK_BUFFER;
 extern uint8_t _PCE_ROM_UNPACK_BUFFER_SIZE;
 
 extern void * __RAM_END__[];
+
+extern uint8_t __ahbram_start__[];
+extern uint8_t __ahbram_heap_start__[];
+extern uint8_t __ahbram_audio_start__[];
+extern uint8_t __ahbram_end__[];
 
 /* C++ init array constructors */
 extern void (* __init_array_tgb_start__[])(void);

@@ -389,6 +389,10 @@ uint8_t get_font() {
 #include "rg_i18n_de_de.c"
 #endif
 
+#if INCLUDED_NO_NB == 1
+#include "rg_i18n_no_nb.c"
+#endif
+
 #if INCLUDED_ZH_CN == 1
 #include "rg_i18n_zh_cn.c"
 #endif
@@ -492,6 +496,10 @@ static const lang_metadata_t lang_metadata[] = {
 #if INCLUDED_DE_DE == 1
     { 1252, "/lang/de_de.bin", "Deutsch",
       de_de_fmt_Title_Date_Format, de_de_fmt_Date, de_de_fmt_Time },
+#endif
+#if INCLUDED_NO_NB == 1
+    { 1252, "/lang/no_nb.bin", "Norwegian",
+      no_nb_fmt_Title_Date_Format, no_nb_fmt_Date, no_nb_fmt_Time },
 #endif
 #if INCLUDED_RU_RU == 1
     { 1251, "/lang/ru_ru.bin", "Russian",

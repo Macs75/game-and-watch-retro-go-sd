@@ -21,9 +21,10 @@ LARGE_FLASH ?= 0
 SD_CARD ?= 1
 
 # Docker image for reproducible ARM builds (see targets docker, docker_build).
-RELEASE_VERSION ?= v1.4
+RELEASE_VERSION ?= v1.5
 CONTAINER_NAME ?= retro-go-sd
-DOCKER_IMAGE ?= sylverb/retro-go-sd-builder:$(RELEASE_VERSION)
+DOCKER_REPOSITORY ?= sylverb/retro-go-sd-builder
+DOCKER_IMAGE ?= $(DOCKER_REPOSITORY):$(RELEASE_VERSION)
 DOCKER_RUN := docker run --rm -it \
     --network host \
     --name $(CONTAINER_NAME) \
@@ -124,6 +125,10 @@ INTFLASH_ADDRESS = 0x08000000
 INTFLASH_BANK = 1
 endif
 endif
+
+# Configure address where Retro-Go looks for Original Firmware metadata.
+# Defaults to Bank 1 (0x08000000).
+OFW_ADDRESS ?= 0x08000000
 
 GNWMANAGER ?= gnwmanager
 
@@ -252,6 +257,7 @@ FR_FR ?= 1
 IT_IT ?= 1
 RU_RU ?= 1
 DE_DE ?= 1
+NO_NB ?= 1
 ZH_CN ?= 0
 ZH_TW ?= 0
 KO_KR ?= 0
@@ -292,6 +298,9 @@ else ifeq ($(CODEPAGE), 12521)
 else ifeq ($(CODEPAGE), 12525)
 	DE_DE = 1
 	SCODEPAGE = "iso-8859-1"
+else ifeq ($(CODEPAGE), 12526)
+	NO_NB = 1
+	SCODEPAGE = "iso-8859-1"
 else
     SCODEPAGE = "iso-8859-1"
 endif
@@ -317,6 +326,8 @@ else ifeq ($(UICODEPAGE), 12521)
 	RU_RU = 1
 else ifeq ($(UICODEPAGE), 12525)
 	DE_DE = 1
+else ifeq ($(UICODEPAGE), 12526)
+	NO_NB = 1
 endif
 
 ROMINFOCODE ?= $(SCODEPAGE)
@@ -369,6 +380,31 @@ endif
 
 JPG_QUALITY ?= 90
 JPG_QUALITY_PARAM := --jpg_quality=$(JPG_QUALITY)
+
+#######################################
+# covers
+#######################################
+DOWNLOAD_COVERS ?= 1
+GITHUB_TOKEN ?=
+
+.PHONY: download_covers
+download_covers:
+	$(V)if [ -d roms ]; then \
+		$(PYTHON3) tools/download_covers.py --roms roms $(if $(GITHUB_TOKEN),--token $(GITHUB_TOKEN),); \
+	fi
+
+.PHONY: generate_covers
+generate_covers:
+	$(V)if [ -d roms ]; then \
+		$(PYTHON3) tools/gencovers.py --src roms --dst $(SD_FOLDER)/covers $(JPG_QUALITY_PARAM); \
+	fi
+
+.PHONY: covers
+covers:
+ifeq ($(DOWNLOAD_COVERS),1)
+	$(V)$(MAKE) download_covers
+endif
+	$(V)$(MAKE) generate_covers
 
 # Common C sources
 C_SOURCES +=  \
@@ -589,6 +625,7 @@ C_DEFS +=  \
 -DINTERNAL_CORE_BIN_HEADER_VERSION=$(INTERNAL_CORE_BIN_HEADER_VERSION) \
 -DINTFLASH_BANK=$(INTFLASH_BANK) \
 -DINTFLASH_ADDRESS=$(INTFLASH_ADDRESS) \
+-DOFW_ADDRESS=$(OFW_ADDRESS) \
 -DBIG_BANK=$(BIG_BANK) \
 -DEXTFLASH_SIZE=$(EXTFLASH_SIZE) \
 -DMSX_USE_BANK_2=$(MSX_USE_BANK_2) \
@@ -600,6 +637,7 @@ C_DEFS +=  \
 -DINCLUDED_FR_FR=$(FR_FR) \
 -DINCLUDED_IT_IT=$(IT_IT) \
 -DINCLUDED_DE_DE=$(DE_DE) \
+-DINCLUDED_NO_NB=$(NO_NB) \
 -DINCLUDED_RU_RU=$(RU_RU) \
 -DINCLUDED_ZH_CN=$(ZH_CN) \
 -DINCLUDED_ZH_TW=$(ZH_TW) \
@@ -636,6 +674,11 @@ C_DEFS +=  \
 
 ifdef MAX_CHEAT_CODES
 C_DEFS += -DMAX_CHEAT_CODES=$(MAX_CHEAT_CODES)
+endif
+
+REMOTE_INPUT ?= 0
+ifeq ($(REMOTE_INPUT), 1)
+C_DEFS += -DREMOTE_INPUT
 endif
 
 # AS includes
@@ -715,6 +758,7 @@ else
 endif
 
 LDFLAGS += -Wl,--defsym=__FLASH_LENGTH__=$(FLASH_LENGTH)
+LDFLAGS += -Wl,--defsym=REMOTE_INPUT=$(REMOTE_INPUT)
 
 #######################################
 # LDFLAGS
@@ -1289,6 +1333,9 @@ endif
 ifeq ($(DE_DE),1)
 LANG_BIN_NAMES += de_de
 endif
+ifeq ($(NO_NB),1)
+LANG_BIN_NAMES += no_nb
+endif
 ifeq ($(RU_RU),1)
 LANG_BIN_NAMES += ru_ru
 endif
@@ -1355,10 +1402,9 @@ prepare_msx_bios_files: create_sd_folders
 	@cp "external/blueMSX-go/system/bluemsx/Machines/Shared Roms/MSX2P.rom" $(SD_FOLDER)/bios/msx/
 	@cp "external/blueMSX-go/system/bluemsx/Machines/Shared Roms/MSX2PEXT.rom" $(SD_FOLDER)/bios/msx/
 	@cp "external/blueMSX-go/system/bluemsx/Machines/Shared Roms/MSX2PMUS.rom" $(SD_FOLDER)/bios/msx/
-	@cp "external/blueMSX-go/system/bluemsx/Machines/Shared Roms/MSXDOS23.ROM" $(SD_FOLDER)/bios/msx/
+	@cp "external/blueMSX-go/system/bluemsx/Machines/Shared Roms/Nextor.rom" $(SD_FOLDER)/bios/msx/
 	@cp "external/blueMSX-go/system/bluemsx/Machines/Shared Roms/MSXKANJI.rom" $(SD_FOLDER)/bios/msx/
 	@cp "external/blueMSX-go/system/bluemsx/Machines/Shared Roms/PANASONICDISK.rom" $(SD_FOLDER)/bios/msx/
-	@cp "external/blueMSX-go/system/bluemsx/Machines/Shared Roms/SUNRISEIDE.rom" $(SD_FOLDER)/bios/msx/
     # PANASONICDISK_.rom is a patched version of PANASONICDISK.rom to disable the 2nd FDD
     # this is allowing to free some ram, which is needed for some games. It could be done by pressing
     # ctrl key at boot using original bios, but using this patched version, the user will have nothing
@@ -1406,6 +1452,7 @@ $(SD_CONTENT_STAMP): $(BUILD_DIR)/$(TARGET).elf \
                      external/stella2014-go/convert_defprops.py \
                      external/blueMSX-go/create_compact_database_file.py \
                      Makefile.common Makefile \
+                     $(if $(filter 1,$(COVERFLOW)),covers,) \
                      | create_sd_folders prepare_msx_bios_files
 	@$(PYTHON3) external/fceumm-go/gen_mappers_table.py $(MAPPERS_DIR)/mappers_table.bin
 	@$(PYTHON3) external/fceumm-go/gen_ines_database.py $(MAPPERS_DIR)/ines_correct.bin
@@ -1468,9 +1515,11 @@ LITTLEFS_OMIT_PICO8_RO := $(if $(filter 0,$(SD_CARD)),--omit-pico8-ro-from-gnw-z
 # SD_CARD=0: optional FrogFS ROM LZMA pack (scripts/rom_frogfs_lzma.py); align with COMPRESS=lzma.
 FROGFS_ROM_LZMA_FLAGS := $(if $(filter 0,$(SD_CARD)),$(if $(filter-out 0,$(COMPRESS)),--rom-compression $(COMPRESS),),)
 # Omit /covers from FrogFS unless COVERFLOW=1 (matches firmware COVERFLOW define).
-FROGFS_COVERS_FLAGS := $(if $(filter 1,$(COVERFLOW)),,--no-covers)
+# When COVERFLOW=1, we handle cover generation explicitly via the `covers` target,
+# so we pass --no-gencovers to gen_frogfs_image.py.
+FROGFS_COVERS_FLAGS := $(if $(filter 1,$(COVERFLOW)),--no-gencovers,--no-covers)
 
-$(FROGFS_IMAGE): create_sd_data scripts/gen_frogfs_image.py scripts/rom_frogfs_lzma.py scripts/frogfs_pico8_ro.py scripts/pico8_ro_build_patch.py scripts/pico8_gnw_cores.py scripts/sd_cores_pack.py tools/gencovers.py external/zelda3/tables/restool.py external/smw/assets/restool.py $(FROGFS_DIR)/tools/mkfrogfs.py
+$(FROGFS_IMAGE): create_sd_data scripts/gen_frogfs_image.py scripts/rom_frogfs_lzma.py scripts/frogfs_pico8_ro.py scripts/pico8_ro_build_patch.py scripts/pico8_gnw_cores.py scripts/sd_cores_pack.py external/zelda3/tables/restool.py external/smw/assets/restool.py $(FROGFS_DIR)/tools/mkfrogfs.py
 	$(V)$(PYTHON3) scripts/gen_frogfs_image.py \
 		--sd-content $(SD_FOLDER) \
 		--output $@ \
@@ -1612,6 +1661,24 @@ docker_build:
 	$(V)docker build --network=host --build-arg ARM_COMPILER_VERSION=$(ARM_COMPILER_VERSION) -f Dockerfile --tag $(DOCKER_IMAGE) .
 .PHONY: docker_build
 
+# This is used to update multi arch (amd64/arm64) image on docker.io
+# you need to run this once to setup dockerx :
+#  docker buildx create --name multiarch --use && docker buildx inspect --bootstrap
+# and to login to your docker account :
+#  docker login
+docker_buildx:
+	$(V)docker buildx build \
+		--platform linux/amd64,linux/arm64 \
+		--network=host \
+		--build-arg ARM_COMPILER_VERSION=$(ARM_COMPILER_VERSION) \
+		-f Dockerfile \
+		-t $(DOCKER_REPOSITORY):latest \
+		-t $(DOCKER_REPOSITORY):$(RELEASE_VERSION) \
+		--push \
+		.
+
+.PHONY: docker_push_multiarch
+
 # DEPRECATED: use 'make release DOCKER=1' (SD_CARD=1) or 'make docker_shell' instead.
 # This target will be removed in a future release.
 docker:
@@ -1660,13 +1727,13 @@ help:
 	@echo "  CODEPAGE            - Sets codepage to configures default display language.(default=1252)"
 	@echo "                        set 932 as Japanese; 936 as simple Chinese; 950 as traditional Chinese;"
 	@echo "                        949 as Korean; 12511 as Russian; 12521 as Spanish; 12522 as Portuguese;"
-	@echo "                        12523 as French; 12524 as Italian; 12525 as German;"
+	@echo "                        12523 as French; 12524 as Italian; 12525 as German; 12526 as Norwegian;"
 	@echo "  UICODEPAGE          - Sets ui display language.(default=CODEPAGE=1252 as English)"
 	@echo "  ROMINFOCODE         - Sets encoding of parse rom name, default = ascii"
 	@echo "  ES_ES,PT_PT,FR_FR,  "
 	@echo "  IT_IT,ZH_CN,ZH_TW,  "
 	@echo "  KO_KR,JA_JP,DE_DE,  "
-	@echo "  RU_RU               - Set to 0 to omit Russian UI and CP1251 fonts on SD /fonts."
+	@echo "  NO_NB,RU_RU         - Set to 0 to omit language UI and fonts on SD /lang and /fonts."
 	@echo "  SINGLE_FONT         - Set to 1 to only include the default serif font (per codepage)."
 	@echo "                        Fewer font sections in firmware and only cp1252_serif.bin (+ cp1251 if RU_RU) on /fonts."
 	@echo "                        Unicode fallback .bin files on /fonts follow active ZH_CN,ZH_TW,JA_JP,KO_KR (+ small symbol sets)."
@@ -1708,6 +1775,7 @@ help:
 	@echo "  IT_IT=$(IT_IT)"
 	@echo "  RU_RU=$(RU_RU)"
 	@echo "  DE_DE=$(DE_DE)"
+	@echo "  NO_NB=$(NO_NB)"
 	@echo "  ZH_CN=$(ZH_CN)"
 	@echo "  ZH_TW=$(ZH_TW)"
 	@echo "  KO_KR=$(KO_KR)"
@@ -1720,6 +1788,7 @@ help:
 	@echo "                        Applies to: (default), flash, flash_intflash, flash_extflash,"
 	@echo "                        flash_sd, release, release_sdpush."
 	@echo "  docker_build          - Build the Docker container image"
+	@echo "  docker_buildx         - Push Docker container image to docker.io"
 	@echo "  docker_shell          - Interactive shell in $(DOCKER_IMAGE)"
 	@echo "  docker (deprecated)   - Use 'make release DOCKER=1' or 'make docker_shell' instead"
 	@echo "  dump_screenshot   - Downloads the stored screenshot."
