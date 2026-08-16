@@ -112,8 +112,8 @@ void osd_setpalette(rgb_t *pal)
     HAL_LTDC_EnableCLUT(&hltdc, 0);
 
     // color 13 is "black". Makes for a nice border.
-    memset(framebuffer1, 13, sizeof(framebuffer1));
-    memset(framebuffer2, 13, sizeof(framebuffer2));
+    memset(framebuffer1, 13, lcd_get_frame_size());
+    memset(framebuffer2, 13, lcd_get_frame_size());
 
     odroid_display_force_refresh();
 #else
@@ -509,7 +509,7 @@ int app_main_nes(uint8_t load_state, uint8_t start_paused, int8_t save_slot)
     save_slot_load = save_slot;
 
     odroid_system_init(APPID_NES, AUDIO_SAMPLE_RATE);
-    odroid_system_emu_init(&LoadState, &SaveState, NULL, NULL, NULL, NULL);
+    odroid_system_emu_init(&LoadState, &SaveState, NULL, NULL, NULL, NULL, NULL);
 
     if (start_paused) {
         common_emu_state.pause_after_frames = 4;

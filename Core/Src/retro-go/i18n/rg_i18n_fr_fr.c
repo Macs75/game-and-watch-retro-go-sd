@@ -1,7 +1,3 @@
-#if !defined (INCLUDED_FR_FR)
-#define INCLUDED_FR_FR 1
-#endif
-#if INCLUDED_FR_FR == 1
 //#include "rg_i18n_lang.h"
 // Stand French
 
@@ -21,6 +17,8 @@ int fr_fr_fmt_Time(char *outstr, const char *timefmt, uint16_t hour, uint16_t mi
     return sprintf(outstr, timefmt, hour, minutes, seconds);
 };
 
+// do not compile this part, it will be parsed by a script to create a bin file with language content
+#ifdef DO_NOT_COMPILE
 const lang_t lang_fr_fr LANG_DATA = {
     .codepage = 1252,
     .s_LangUI = "Langue",
@@ -41,6 +39,8 @@ const lang_t lang_fr_fr LANG_DATA = {
 
     // Core\Src\porting\gb\main_gb.c =======================================
     .s_Palette = "Palette",
+    .s_System = "Système",
+    .s_SGB_Border = "Cadre SGB",
     //=====================================================================
 
     // Core\Src\porting\nes\main_nes.c =====================================
@@ -85,10 +85,9 @@ const lang_t lang_fr_fr LANG_DATA = {
     .s_md_Synchro_Vsync = "VSYNC",
     .s_md_Dithering = "Dithering",
     .s_md_Debug_bar = "Debug bar",
-    .s_md_Option_ON = "\x6",
-    .s_md_Option_OFF = "\x5",
     .s_md_AudioFilter = "Audio Filter",
     .s_md_VideoUpscaler = "Video Upscaler",
+    .s_md_Region = "Région",
     //=====================================================================
 
     // Core\Src\porting\md\main_wsv.c ================================
@@ -146,6 +145,8 @@ const lang_t lang_fr_fr LANG_DATA = {
     //=====================================================================
 
     // Core\Src\porting\odroid_overlay.c ===================================
+    .s_Option_ON = "\x6",
+    .s_Option_OFF = "\x5",
     .s_Full = "\x7",
     .s_Fill = "\x8",
     .s_No_Cover = "Pas d'image",
@@ -213,8 +214,6 @@ const lang_t lang_fr_fr LANG_DATA = {
 #if CHEAT_CODES == 1
     .s_Cheat_Codes = "Codes de triche",
     .s_Cheat_Codes_Title = "Options de triche",
-    .s_Cheat_Codes_ON = "\x6",
-    .s_Cheat_Codes_OFF = "\x5",
 #endif
     //=====================================================================
 
@@ -279,6 +278,7 @@ const lang_t lang_fr_fr LANG_DATA = {
     .s_Title_Date_Format = "%02d-%02d %s %02d:%02d:%02d",
     .s_Date_Format = "%02d.%02d.20%02d %s",
     .s_Time_Format = "%02d:%02d:%02d",
+    .s_favorite = "Favori",
     .fmt_Title_Date_Format = fr_fr_fmt_Title_Date_Format,
     .fmtDate = fr_fr_fmt_Date,
     .fmtTime = fr_fr_fmt_Time,

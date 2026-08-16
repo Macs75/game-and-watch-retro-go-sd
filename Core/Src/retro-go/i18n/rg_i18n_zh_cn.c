@@ -1,11 +1,3 @@
-#if !defined (INCLUDED_ZH_CN)
-#define INCLUDED_ZH_CN 0
-#endif
-#if !defined (CHEAT_CODES)
-#define CHEAT_CODES 0
-#endif
-#if INCLUDED_ZH_CN==1
-
 // Stand 简体中文
 
 int zh_cn_fmt_Title_Date_Format(char *outstr, const char *datefmt, uint16_t day, uint16_t month, const char *weekday, uint16_t hour, uint16_t minutes, uint16_t seconds)
@@ -23,6 +15,8 @@ int zh_cn_fmt_Time(char *outstr, const char *timefmt, uint16_t hour, uint16_t mi
     return sprintf(outstr, timefmt, hour, minutes, seconds);
 };
 
+// do not compile this part, it will be parsed by a script to create a bin file with language content
+#ifdef DO_NOT_COMPILE
 const lang_t lang_zh_cn LANG_DATA = {
     .codepage = 936,
     .s_LangUI = "语言",
@@ -43,6 +37,8 @@ const lang_t lang_zh_cn LANG_DATA = {
 
     // Core\Src\porting\gb\main_gb.c =======================================
     .s_Palette = "调色板",
+    .s_System = "系统",
+    .s_SGB_Border = "SGB 边框",
     //=====================================================================
 
     // Core\Src\porting\md\main_gwenesis.c ================================
@@ -52,10 +48,9 @@ const lang_t lang_zh_cn LANG_DATA = {
     .s_md_Synchro_Vsync = "视频",
     .s_md_Dithering = "抖动显示",
     .s_md_Debug_bar = "测试信息",
-    .s_md_Option_ON = "\x6",
-    .s_md_Option_OFF = "\x5",
     .s_md_AudioFilter = "音频提升",
     .s_md_VideoUpscaler = "视频提升",
+    .s_md_Region = "地区",
     //=====================================================================
 
     // Core\Src\porting\nes\main_nes.c =====================================
@@ -148,6 +143,8 @@ const lang_t lang_zh_cn LANG_DATA = {
     //=====================================================================
 
     // Core\Src\porting\odroid_overlay.c ===================================
+    .s_Option_ON = "\x6",
+    .s_Option_OFF = "\x5",
     .s_Full = "\x7",
     .s_Fill = "\x8",
 
@@ -219,8 +216,6 @@ const lang_t lang_zh_cn LANG_DATA = {
 #if CHEAT_CODES == 1
     .s_Cheat_Codes = "金手指码",
     .s_Cheat_Codes_Title = "金手指",
-    .s_Cheat_Codes_ON = "\x6",
-    .s_Cheat_Codes_OFF = "\x5",
 #endif
 
     //=====================================================================
@@ -295,6 +290,7 @@ const lang_t lang_zh_cn LANG_DATA = {
     .s_Title_Date_Format = "%02d-%02d 周%s %02d:%02d:%02d",
     .s_Time_Format = "%02d:%02d:%02d",
 
+    .s_favorite = "收藏",
     .fmt_Title_Date_Format = zh_cn_fmt_Title_Date_Format,
     .fmtDate = zh_cn_fmt_Date,
     .fmtTime = zh_cn_fmt_Time,

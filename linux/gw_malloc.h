@@ -18,6 +18,11 @@ void *itc_calloc(size_t count,size_t size);
 void *ram_malloc(size_t size);
 void *ram_calloc(size_t count,size_t size);
 
+void *ahb_only_malloc(size_t size);
+
+void *dtcm_malloc(size_t size);
+void dtcm_free(void *ptr);
+
 #ifdef __cplusplus
 }
 #endif

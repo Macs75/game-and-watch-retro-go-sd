@@ -2,12 +2,13 @@
 
 ## What's New
 
-### Version 1.3.1
+### Version 1.4.1
 
-!!!! v1.3.x is a major update, some regression may occurs. Please report them. !!!!
-
-- Fix broken SMS/GG/SG1000/Colecovision emulator
-- The SMS/... fix required to make some breaking changes in Pico-8 core, update to pico core v.1.1.3-beta or better ( download it there : https://github.com/Macs75/pico8_gnw_distro )
+- GBA :
+  - Corrected inverted L/R keys
+  - Correct overclocking is applied after a sleep/wake up
+  - Improved performances for some games by using bios HLE
+  - Fixed Shantae Advance - Risky Revolution rebooting issue (and maybe some other games)
 
 ## Prerequisites
 To install this version, make sure you have:

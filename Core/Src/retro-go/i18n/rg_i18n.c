@@ -6,6 +6,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <stddef.h>  /* offsetof — used by i18n_load_language */
+#include <stdbool.h>
 #include <math.h>
 
 #if !defined (INCLUDED_ZH_CN)
@@ -53,10 +55,10 @@
 #include "main.h"
 #include "odroid_system.h"
 #include "odroid_overlay.h"
+#include "gw_malloc.h"
 
 static uint8_t curr_font = 0;
 
-#if SD_CARD == 1
 #define FONT_DATA_CP1251_GREYBEARD __attribute__((section(".sd_fonts_cp1251_greybeard")))
 #define FONT_DATA_CP1251_SANS_SERIF_BOLD __attribute__((section(".sd_fonts_cp1251_sans_serif_bold")))
 #define FONT_DATA_CP1251_SANS_SERIF __attribute__((section(".sd_fonts_cp1251_sans_serif")))
@@ -73,45 +75,7 @@ static uint8_t curr_font = 0;
 #define FONT_DATA_CP1252_SERIF __attribute__((section(".sd_fonts_cp1252_serif")))
 #define FONT_DATA_CP1252_UNBALANCED __attribute__((section(".sd_fonts_cp1252_unbalanced")))
 
-#elif ((BIG_BANK == 1) && (EXTFLASH_SIZE <= 16*1024*1024))
-#define FONT_DATA_CP1251_GREYBEARD
-#define FONT_DATA_CP1251_SANS_SERIF_BOLD
-#define FONT_DATA_CP1251_SANS_SERIF
-#define FONT_DATA_CP1251_SERIF_BOLD
-#define FONT_DATA_CP1251_SERIF
-
-#define FONT_DATA_CP1252_GREYBEARD
-#define FONT_DATA_CP1252_HAEBERLI12
-#define FONT_DATA_CP1252_ROCK12
-#define FONT_DATA_CP1252_SANS_SERIF_BOLD
-#define FONT_DATA_CP1252_SANS_SERIF
-#define FONT_DATA_CP1252_SERIF_BOLD
-#define FONT_DATA_CP1252_SERIF_CJK
-#define FONT_DATA_CP1252_SERIF
-#define FONT_DATA_CP1252_UNBALANCED
-#else
-#define FONT_DATA_CP1251_GREYBEARD __attribute__((section(".extflash_font")))
-#define FONT_DATA_CP1251_SANS_SERIF_BOLD __attribute__((section(".extflash_font")))
-#define FONT_DATA_CP1251_SANS_SERIF __attribute__((section(".extflash_font")))
-#define FONT_DATA_CP1251_SERIF_BOLD __attribute__((section(".extflash_font")))
-#define FONT_DATA_CP1251_SERIF __attribute__((section(".extflash_font")))
-
-#define FONT_DATA_CP1252_GREYBEARD __attribute__((section(".extflash_font")))
-#define FONT_DATA_CP1252_HAEBERLI12 __attribute__((section(".extflash_font")))
-#define FONT_DATA_CP1252_ROCK12 __attribute__((section(".extflash_font")))
-#define FONT_DATA_CP1252_SANS_SERIF_BOLD __attribute__((section(".extflash_font")))
-#define FONT_DATA_CP1252_SANS_SERIF __attribute__((section(".extflash_font")))
-#define FONT_DATA_CP1252_SERIF_BOLD __attribute__((section(".extflash_font")))
-#define FONT_DATA_CP1252_SERIF_CJK __attribute__((section(".extflash_font")))
-#define FONT_DATA_CP1252_SERIF __attribute__((section(".extflash_font")))
-#define FONT_DATA_CP1252_UNBALANCED __attribute__((section(".extflash_font")))
-#endif
-
-#if ((BIG_BANK == 1) && (EXTFLASH_SIZE <= 16*1024*1024)) || SD_CARD == 1
 #define LANG_DATA
-#else
-#define LANG_DATA __attribute__((section(".extflash_emu_data")))
-#endif
 
 #include "fonts/font_cp1252_Serif.h"
 
@@ -125,21 +89,6 @@ static uint8_t curr_font = 0;
 #include "fonts/font_cp1252_rock12.h"
 #include "fonts/font_cp1252_haeberli12.h"
 #endif
-
-#if SD_CARD == 0
-#if INCLUDED_JA_JP == 1
-#include "fonts/font_cp932_ja_jp.h"
-#endif
-#if INCLUDED_ZH_CN == 1
-#include "fonts/font_cp936_zh_cn.h"
-#endif
-#if INCLUDED_KO_KR == 1
-#include "fonts/font_cp949_ko_kr.h"
-#endif
-#if INCLUDED_ZH_TW == 1
-#include "fonts/font_cp950_zh_tw.h"
-#endif
-#endif // SD_CARD == 0
 
 #if INCLUDED_RU_RU == 1
 #include "fonts/font_cp1251_Serif.h"
@@ -275,8 +224,8 @@ static FontEntry *get_font_data(uint32_t codepoint) {
     FILE *file;
 
     if (font_cache == NULL) {
-        font_cache = (FontEntry *)malloc(CACHE_SIZE * sizeof(FontEntry));
-        font_data_cache = (uint8_t *)malloc(FONT_CACHE_SIZE * sizeof(uint8_t));
+        font_cache = (FontEntry *)dtcm_malloc(CACHE_SIZE * sizeof(FontEntry));
+        font_data_cache = (uint8_t *)dtcm_malloc(FONT_CACHE_SIZE * sizeof(uint8_t));
         init_font_cache();
     }
 
@@ -419,67 +368,6 @@ uint8_t get_font() {
     return curr_font;
 }
 
-#if SD_CARD == 0
-#if SINGLE_FONT
-const char *gui_fonts[9] = {
-    font_cp1252_Serif, font_cp1252_Serif, font_cp1252_Serif,
-    font_cp1252_Serif, font_cp1252_Serif, font_cp1252_Serif,
-    font_cp1252_Serif, font_cp1252_Serif, font_cp1252_Serif,
-    };
-#else
-const char *gui_fonts[9] = {
-    font_cp1252_Serif,    font_cp1252_Serif_Bold,    font_cp1252_Serif_CJK,
-    font_cp1252_Sans_serif,    font_cp1252_Sans_serif_Bold,    font_cp1252_Greybeard,
-    font_cp1252_Unbalanced,    font_cp1252_rock12,    font_cp1252_haeberli12,
-    };
-#endif
-
-#if INCLUDED_JA_JP == 1
-/*const char *ja_jp_fonts[9] = {
-    font_cp932_ja_jp,    font_cp932_ja_jp,    font_cp932_ja_jp,
-    font_cp932_ja_jp,    font_cp932_ja_jp,    font_cp932_ja_jp,
-    font_cp932_ja_jp,    font_cp932_ja_jp,    font_cp932_ja_jp,
-    };*/
-#endif
-#if INCLUDED_ZH_CN == 1
-const char *zh_cn_fonts[9] = {
-    font_cp936_zh_cn,    font_cp936_zh_cn,    font_cp936_zh_cn,
-    font_cp936_zh_cn,    font_cp936_zh_cn,    font_cp936_zh_cn,
-    font_cp936_zh_cn,    font_cp936_zh_cn,    font_cp936_zh_cn,
-    };
-#endif
-#if INCLUDED_KO_KR == 1
-const char *ko_kr_fonts[9] = {
-    font_cp949_ko_kr,    font_cp949_ko_kr,    font_cp949_ko_kr,
-    font_cp949_ko_kr,    font_cp949_ko_kr,    font_cp949_ko_kr,
-    font_cp949_ko_kr,    font_cp949_ko_kr,    font_cp949_ko_kr,
-    };
-#endif
-#if INCLUDED_ZH_TW == 1
-const char *zh_tw_fonts[9] = {
-    font_cp950_zh_tw,    font_cp950_zh_tw,    font_cp950_zh_tw,
-    font_cp950_zh_tw,    font_cp950_zh_tw,    font_cp950_zh_tw,
-    font_cp950_zh_tw,    font_cp950_zh_tw,    font_cp950_zh_tw,
-    };
-#endif
-#if INCLUDED_RU_RU == 1
-#if SINGLE_FONT
-const char *cp1251_fonts[9] = {
-    font_cp1251_Serif, font_cp1251_Serif, font_cp1251_Serif,
-    font_cp1251_Serif, font_cp1251_Serif, font_cp1251_Serif,
-    font_cp1251_Serif, font_cp1251_Serif, font_cp1251_Serif,
-    };
-#else
-const char *cp1251_fonts[9] = {
-    font_cp1251_Serif,    font_cp1251_Serif_Bold,    font_cp1251_Serif,
-    font_cp1251_Sans_serif,    font_cp1251_Sans_serif_Bold,    font_cp1251_Greybeard,
-    font_cp1251_Serif_Bold,    font_cp1251_Serif_Bold,    font_cp1251_Serif_Bold,
-    };
-#endif
-#endif
-#endif
-
-
 #include "rg_i18n_en_us.c"
 
 #if INCLUDED_ES_ES == 1
@@ -500,6 +388,10 @@ const char *cp1251_fonts[9] = {
 
 #if INCLUDED_DE_DE == 1
 #include "rg_i18n_de_de.c"
+#endif
+
+#if INCLUDED_NO_NB == 1
+#include "rg_i18n_no_nb.c"
 #endif
 
 #if INCLUDED_ZH_CN == 1
@@ -524,42 +416,300 @@ const char *cp1251_fonts[9] = {
 
 /* overlay_buffer removed — all drawing goes directly to LCD framebuffer */
 
-const lang_t *gui_lang[] = {
-    &lang_en_us,
+/* gui_lang[] removed — was an array of pointers to the per-language
+ * lang_xx_xx static structs (each ~860 bytes of rodata + ~2 KB of
+ * translated strings). Replaced by lang_metadata[] below for compile-
+ * time descriptors (codepage, fn pointers, display name) and by
+ * i18n_load_language() for the strings themselves (loaded from SD
+ * at runtime).
+ *
+ * Once gui_lang[] is gone, the 9 non-en_us lang_xx_xx static structs
+ * are unreferenced and the linker's --gc-sections drops them, freeing
+ * ~18 KB of intflash. lang_en_us stays because it's the baked
+ * fallback inside i18n_load_language(). */
+
+lang_t *curr_lang = &lang_en_us;
+
+/* ──── SD-backed i18n: runtime-loaded language strings ────────────────────
+ *
+ * Per-language string data lives in /lang/xx_xx.bin on the SD card (built
+ * by tools/gen_i18n_bin.py). At app init we open the file for the active
+ * language, malloc a small buffer, read the strings into it, then
+ * populate the 215 `s_XXX` pointers in lang_active to point inside the
+ * buffer. curr_lang is then set to &lang_active.
+ *
+ * Only one non-en_us language is kept in RAM at a time; switching
+ * frees the previous buffer. en_us stays baked (lang_en_us) as a
+ * guaranteed fallback when the SD card has no /lang/xx_xx.bin or the
+ * file is corrupt.
+ *
+ * Binary format (matches tools/gen_i18n_bin.py):
+ *   [0]            u32 magic = 'I18N' (0x4E383149)
+ *   [4]            u16 version = 1
+ *   [6]            u16 count
+ *   [8]            u32 offsets[count]   (relative to start of strings)
+ *   [8 + 4*count]  null-terminated UTF-8 strings, concatenated
+ */
+#define I18N_BIN_MAGIC   0x4E383149u
+#define I18N_BIN_VERSION 1
+
+typedef struct {
+    uint32_t    codepage;
+    const char *bin_path;       /* e.g. "/lang/de_de.bin" */
+    const char *display_name;   /* shown in lang menu BEFORE .bin load */
+    int (*fmt_Title_Date_Format)(char *outstr, const char *datefmt,
+                                 uint16_t day, uint16_t month,
+                                 const char *weekday, uint16_t hour,
+                                 uint16_t minutes, uint16_t seconds);
+    int (*fmtDate)(char *outstr, const char *datefmt,
+                   uint16_t day, uint16_t month, uint16_t year,
+                   const char *weekday);
+    int (*fmtTime)(char *outstr, const char *timefmt,
+                   uint16_t hour, uint16_t minutes, uint16_t seconds);
+} lang_metadata_t;
+
+/* The order here is the user-facing language index (persisted as
+ * `lang` in odroid settings). Changing the order or removing an
+ * entry shifts every saved selection, so prefer appending. */
+static const lang_metadata_t lang_metadata[] = {
+    /* en_us has bin_path = NULL because the baked lang_en_us struct in
+     * rodata is always available; i18n_load_language() short-circuits
+     * directly to it instead of doing a pointless SD read. The Makefile
+     * also skips generating /lang/en_us.bin for the same reason. */
+    { 1252, NULL, "English",
+      en_us_fmt_Title_Date_Format, en_us_fmt_Date, en_us_fmt_Time },
 #if INCLUDED_ES_ES == 1
-    &lang_es_es,
+    { 1252, "/lang/es_es.bin", "Spanish",
+      es_es_fmt_Title_Date_Format, es_es_fmt_Date, es_es_fmt_Time },
 #endif
 #if INCLUDED_PT_PT == 1
-    &lang_pt_pt,
+    { 1252, "/lang/pt_pt.bin", "Portuguese",
+      pt_pt_fmt_Title_Date_Format, pt_pt_fmt_Date, pt_pt_fmt_Time },
 #endif
 #if INCLUDED_FR_FR == 1
-    &lang_fr_fr,
+    { 1252, "/lang/fr_fr.bin", "French",
+      fr_fr_fmt_Title_Date_Format, fr_fr_fmt_Date, fr_fr_fmt_Time },
 #endif
 #if INCLUDED_IT_IT == 1
-    &lang_it_it,
+    { 1252, "/lang/it_it.bin", "Italian",
+      it_it_fmt_Title_Date_Format, it_it_fmt_Date, it_it_fmt_Time },
 #endif
 #if INCLUDED_DE_DE == 1
-    &lang_de_de,
+    { 1252, "/lang/de_de.bin", "Deutsch",
+      de_de_fmt_Title_Date_Format, de_de_fmt_Date, de_de_fmt_Time },
+#endif
+#if INCLUDED_NO_NB == 1
+    { 1252, "/lang/no_nb.bin", "Norwegian",
+      no_nb_fmt_Title_Date_Format, no_nb_fmt_Date, no_nb_fmt_Time },
 #endif
 #if INCLUDED_RU_RU == 1
-    &lang_ru_ru,
+    { 1251, "/lang/ru_ru.bin", "Russian",
+      ru_ru_fmt_Title_Date_Format, ru_ru_fmt_Date, ru_ru_fmt_Time },
 #endif
 #if INCLUDED_ZH_CN == 1
-    &lang_zh_cn,
+    {  936, "/lang/zh_cn.bin", "Simplified Chinese",
+      zh_cn_fmt_Title_Date_Format, zh_cn_fmt_Date, zh_cn_fmt_Time },
 #endif
 #if INCLUDED_ZH_TW == 1
-    &lang_zh_tw,
+    {  950, "/lang/zh_tw.bin", "Traditional Chinese",
+      zh_tw_fmt_Title_Date_Format, zh_tw_fmt_Date, zh_tw_fmt_Time },
 #endif
 #if INCLUDED_KO_KR == 1
-    &lang_ko_kr,
+    {  949, "/lang/ko_kr.bin", "Korean",
+      ko_kr_fmt_Title_Date_Format, ko_kr_fmt_Date, ko_kr_fmt_Time },
 #endif
 #if INCLUDED_JA_JP == 1
-    &lang_ja_jp,
+    {  932, "/lang/ja_jp.bin", "Japanese",
+      ja_jp_fmt_Title_Date_Format, ja_jp_fmt_Date, ja_jp_fmt_Time },
 #endif
 };
 
-lang_t *curr_lang = &lang_en_us;
-const int gui_lang_count = sizeof(gui_lang) / sizeof(*gui_lang);
+/* The 215 s_XXX fields in lang_t are contiguous `const char *` pointers
+ * starting at &lang_t.s_LangUI (codepage precedes them, fn pointers
+ * follow). Treating that region as a flat const-char-pointer array lets
+ * the loader assign by index without naming each field. */
+#define LANG_T_STRING_COUNT \
+    ((offsetof(lang_t, fmt_Title_Date_Format) - offsetof(lang_t, s_LangUI)) \
+     / sizeof(const char *))
+
+static lang_t  lang_active;
+
+/* Single-slot SD language strings. Only one non-en_us language is kept
+ * in RAM at a time (~2–3 KB). en_us stays baked in flash (lang_en_us)
+ * and needs no allocation. Switching languages frees the previous
+ * buffer before installing the new one.
+ *
+ * Dialogs that capture curr_lang->s_XXX pointers at open time must
+ * snapshot those strings (see odroid_overlay_dialog) — otherwise
+ * browsing the language list would leave dangling labels.
+ *
+ * lang_failed_idx remembers an idx whose .bin failed to load so the
+ * ~60 Hz redraw path does not re-open a missing file every frame. */
+static char   *lang_strings_buf = NULL;
+static int     lang_active_idx  = -1;
+static int     lang_failed_idx  = -1;
+
+static void i18n_free_active_strings(void)
+{
+    if (lang_strings_buf) {
+        dtcm_free(lang_strings_buf);
+        lang_strings_buf = NULL;
+    }
+}
+
+/* Read /lang/xx_xx.bin for `idx` into a fresh buffer and install it as
+ * the sole active language. On any error the previous language (if any)
+ * is left untouched and false is returned. */
+static bool i18n_load_from_sd(int idx)
+{
+    const lang_metadata_t *m = &lang_metadata[idx];
+    if (!m->bin_path) return true;  /* en_us: nothing to load. */
+
+    FILE *f = fopen(m->bin_path, "rb");
+    if (!f) {
+        fprintf(stderr, "i18n_load: cannot open '%s' (SD missing?) — using en_us\n",
+                m->bin_path);
+        return false;
+    }
+
+    uint32_t magic = 0;
+    uint16_t version = 0, count = 0;
+    if (fread(&magic, 4, 1, f) != 1 || magic != I18N_BIN_MAGIC) {
+        fprintf(stderr, "i18n_load: '%s' bad magic 0x%08lx — using en_us\n",
+                m->bin_path, (unsigned long)magic);
+        fclose(f);
+        return false;
+    }
+    if (fread(&version, 2, 1, f) != 1 || version != I18N_BIN_VERSION) {
+        fprintf(stderr, "i18n_load: '%s' bad version %u — using en_us\n",
+                m->bin_path, version);
+        fclose(f);
+        return false;
+    }
+    if (fread(&count, 2, 1, f) != 1 || count > LANG_T_STRING_COUNT + 4) {
+        fprintf(stderr, "i18n_load: '%s' bad count %u (expected %u) — using en_us\n",
+                m->bin_path, count, (unsigned)LANG_T_STRING_COUNT);
+        fclose(f);
+        return false;
+    }
+
+    uint32_t offsets[LANG_T_STRING_COUNT];
+    const uint16_t to_read = count < LANG_T_STRING_COUNT ? count : LANG_T_STRING_COUNT;
+    if (fread(offsets, 4, to_read, f) != to_read) {
+        fprintf(stderr, "i18n_load: '%s' short read of offsets — using en_us\n",
+                m->bin_path);
+        fclose(f);
+        return false;
+    }
+    if (count > LANG_T_STRING_COUNT)
+        fseek(f, (count - LANG_T_STRING_COUNT) * 4L, SEEK_CUR);
+
+    long header_end = ftell(f);
+    fseek(f, 0, SEEK_END);
+    long file_size = ftell(f);
+    long strings_size = file_size - header_end;
+    if (strings_size <= 0 || strings_size > 32 * 1024) {
+        fprintf(stderr, "i18n_load: '%s' implausible strings size %ld — using en_us\n",
+                m->bin_path, strings_size);
+        fclose(f);
+        return false;
+    }
+    fseek(f, header_end, SEEK_SET);
+
+    char *buf = (char *)dtcm_malloc((size_t)strings_size);
+    if (!buf) {
+        fprintf(stderr, "i18n_load: '%s' OOM allocating %ld bytes — using en_us\n",
+                m->bin_path, strings_size);
+        fclose(f);
+        return false;
+    }
+    if (fread(buf, 1, (size_t)strings_size, f) != (size_t)strings_size) {
+        fprintf(stderr, "i18n_load: '%s' short read of strings — using en_us\n",
+                m->bin_path);
+        dtcm_free(buf);
+        fclose(f);
+        return false;
+    }
+    fclose(f);
+
+    /* Commit: free the previous language, then point lang_active at the
+     * new buffer. Populate from en_us first so any missing string keeps
+     * the English fallback. */
+    i18n_free_active_strings();
+    lang_strings_buf = buf;
+
+    memcpy(&lang_active, &lang_en_us, sizeof(lang_t));
+    *(uint32_t *)&lang_active.codepage = m->codepage;
+    *(void **)&lang_active.fmt_Title_Date_Format = (void *)m->fmt_Title_Date_Format;
+    *(void **)&lang_active.fmtDate               = (void *)m->fmtDate;
+    *(void **)&lang_active.fmtTime               = (void *)m->fmtTime;
+
+    const char **dst = (const char **)&lang_active.s_LangUI;
+    for (uint16_t i = 0; i < to_read; i++) {
+        if (offsets[i] < (uint32_t)strings_size)
+            dst[i] = buf + offsets[i];
+    }
+    lang_active_idx = idx;
+    lang_failed_idx = -1;
+    printf("i18n_load: '%s' loaded %u strings (%ld bytes)\n",
+           m->bin_path, to_read, strings_size);
+    return true;
+}
+
+/* Return a usable lang_t* for `idx`. The returned pointer is either
+ * &lang_active (the single SD-loaded language) or &lang_en_us (baked
+ * fallback when SD load failed, idx is en_us, or idx is out of range).
+ *
+ * At most one non-en_us language buffer is kept in RAM; switching
+ * frees the previous one. Safe to call from the redraw loop — a
+ * failed idx is not retried every frame. */
+lang_t *i18n_load_language(int idx)
+{
+    const int n = (int)(sizeof(lang_metadata) / sizeof(*lang_metadata));
+    if (idx < 0 || idx >= n) {
+        fprintf(stderr, "i18n_load: idx=%d out of range, falling back to en_us\n", idx);
+        return &lang_en_us;
+    }
+    const lang_metadata_t *m = &lang_metadata[idx];
+    if (!m->bin_path) {
+        /* en_us: rodata, no malloc, no SD touch. Drop any previously
+         * loaded language so we never keep a stale buffer around. */
+        i18n_free_active_strings();
+        lang_active_idx = idx;
+        lang_failed_idx = -1;
+        return &lang_en_us;
+    }
+
+    /* Already the active language — nothing to do. */
+    if (idx == lang_active_idx && lang_strings_buf)
+        return &lang_active;
+
+    /* Prior failure for this idx: do not hammer FatFs every redraw. */
+    if (idx == lang_failed_idx)
+        return &lang_en_us;
+
+    if (!i18n_load_from_sd(idx)) {
+        lang_failed_idx = idx;
+        return &lang_en_us;
+    }
+    return &lang_active;
+}
+
+
+/* Public count of languages available at this build (replaces what
+ * sizeof(gui_lang)/sizeof(*gui_lang) used to compute). */
+const int gui_lang_count = (int)(sizeof(lang_metadata) / sizeof(*lang_metadata));
+
+/* Native display name for the menu — usable BEFORE i18n_load_language
+ * runs (no SD touch). Returns "?" for an out-of-range idx so the menu
+ * doesn't crash on a corrupt setting. */
+const char *i18n_lang_display_name(int idx)
+{
+    if (idx < 0 || idx >= gui_lang_count)
+        return "?";
+    return lang_metadata[idx].display_name;
+}
+
 
 static int utf8_decode(const char *str, uint32_t *codepoint) {
     if (!str || !codepoint) return 0;
@@ -583,31 +733,10 @@ static int utf8_decode(const char *str, uint32_t *codepoint) {
     return 0;
 }
 
-#if SD_CARD == 1
 int i18n_get_char_width(uint32_t codepoint) {
     FontEntry *entry = get_font_data(codepoint);
     return entry ? entry->width : 0;
 }
-#else
-int i18n_get_char_width(uint32_t codepoint)
-{
-    char *font;
-    if (codepoint < 0x100) {
-        font = gui_fonts[curr_font];
-        return font[codepoint]; // Basic Latin (ASCII) characters
-    } else if (codepoint >= 0x410 && codepoint <= 0x44F) {
-        codepoint = codepoint - 0x410 + 0xC0; // 0x400 utf8 codepoint is 0x80 in cp1251 font
-        font = cp1251_fonts[curr_font];
-        return font[codepoint]; // Cyrillic characters
-    } else if (codepoint >= 0x4E00 && codepoint <= 0x9FFF) {
-        return 12; // CJK Unified Ideographs
-    } else if (codepoint >= 0x1100 && codepoint <= 0x11FF) {
-        return 12; // Hangul Jamo
-    } else {
-        return 8; // Default width for other Unicode characters
-    }
-}
-#endif
 
 int i18n_get_text_height()
 {
@@ -829,39 +958,33 @@ int i18n_draw_text_line(uint16_t x_pos, uint16_t y_pos, uint16_t width, const ch
         return 0;
     int font_height = 12;
     int x_offset = 0;
-    uint16_t *fb = lcd_get_active_buffer();
 
-    /* Fill background (skip if transparent — existing pixels are the background) */
+    lcd_pen_t fg = lcd_pen(color);
+    lcd_pen_t bg = lcd_pen(color_bg);
+
     if (!transparent) {
-        for (int y = 0; y < font_height; y++) {
-            uint16_t *row = &fb[(y_pos + y) * ODROID_SCREEN_WIDTH + x_pos];
-            for (int x = 0; x < width; x++)
-                row[x] = color_bg;
-        }
+        for (int y = 0; y < font_height; y++)
+            lcd_pen_run(&bg, (y_pos + y) * ODROID_SCREEN_WIDTH + x_pos, width);
     }
 
-    /* Render glyphs directly to framebuffer */
     uint32_t codepoint;
     int bytes;
     while (*text) {
         bytes = utf8_decode(text, &codepoint);
         if (bytes == 0) break;
         text += bytes;
-
         FontEntry *entry = get_font_data(codepoint);
-        if (entry == NULL)
-            continue;
+        if (entry == NULL) continue;
         int cw = entry->width;
-        if ((x_offset + cw) > width)
-            break;
+        if ((x_offset + cw) > width) break;
         if (cw != 0 && entry->char_data != NULL) {
             int line_bytes = (cw + 7) / 8;
             for (int y = 0; y < font_height; y++) {
                 uint32_t *pixels_data = (uint32_t *)&(entry->char_data[y * line_bytes]);
-                uint16_t *row = &fb[(y_pos + y) * ODROID_SCREEN_WIDTH + x_pos + x_offset];
+                int row_off = (y_pos + y) * ODROID_SCREEN_WIDTH + x_pos + x_offset;
                 for (int x = 0; x < cw; x++) {
                     if (pixels_data[0] & (1 << x))
-                        row[x] = color;
+                        lcd_pen_set(&fg, row_off + x);
                 }
             }
         }

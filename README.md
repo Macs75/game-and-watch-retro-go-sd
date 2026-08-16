@@ -29,6 +29,10 @@ If you are looking for the mod without SD Card (Flash mod only), check https://g
     - [Emulators](#emulators)
     - [SNES Ports](#snes-ports)
     - [Homebrew Ports](#homebrew-ports)
+  - [Notes for specific systems](#notes-for-specific-systems)
+    - [Game Boy Advance](#game-boy-advance)
+    - [PC Engine CD / TurboGrafx-CD](#pc-engine-cd--turbografx-cd)
+    - [Atari Lynx](#atari-lynx)
   - [Controls](#controls)
     - [Button Mappings](#button-mappings)
     - [Macros](#macros)
@@ -192,9 +196,13 @@ To install the hardware mod, you need:
 
 ## Tools
 
-### Cover Art Generator (gencovers.py)
+### Cover Art Generator (gencovers.py + download_covers.py)
 
 Due to memory and power constrains of the Game & Watch hardware, it's not possible to use full size png/jpg/bmp images for cover art.
+**Automation:** When building with `COVERFLOW=1`, covers are automatically downloaded and processed.
+- **Scraping**: `tools/download_covers.py` fetches raw images into `roms/`. GitHub limits unauthenticated requests to **60/hr**. Large collections may require multiple runs or a token (`GITHUB_TOKEN=xxx` via make, or manually with `--token`). Use `DOWNLOAD_COVERS=0` to disable.
+- **Thumbnailing**: `tools/gencovers.py` converts images into optimized `.img` files in `sd_content/covers/`.
+
 Due to current implementation of the covers management, having covers with different sizes for a given system can cause incorrect alignement of images in "CoverLight H" view
 
 User dadagm wrote a macos/windows tool to convert covers in an easy way ! Check https://github.com/dadagm/GameWatchCoverMaker to get his application !
@@ -259,13 +267,16 @@ renders it with the PICO-8 palette, and saves as a JPEG cover.
 - Amstrad CPC6128 (beta)
 - Atari 2600
 - Atari 7800
+- Atari Lynx (experimental)
 - ColecoVision
 - Gameboy / Gameboy Color
+- Game Boy Advance (experimental, SD card only)
 - Game & Watch / LCD Games
 - MSX1/2/2+
 - Nintendo Entertainment System
 - Pico-8
 - PC Engine / TurboGrafx-16
+- PC Engine CD / TurboGrafx-CD (beta, SD card only)
 - Pokémon Mini
 - Sega Game Gear
 - Sega Genesis / Megadrive
@@ -280,6 +291,46 @@ renders it with the PICO-8 palette, and saves as a JPEG cover.
 
 ### Homebrew Ports
 - Celeste Classic 
+
+## Notes for specific systems
+
+### Game Boy Advance
+
+GBA support is currently **experimental** and available on **SD-card builds only**. It has choppy sound randomly and every 15s.
+
+- Put GBA ROMs in: `/roms/gba/`
+
+By default, the firmware uses the bundled open-source BIOS.
+If you provide the official BIOS file on SD, it will be used automatically:
+
+- Path: `/bios/gba/gba_bios.bin`
+- Required size: exactly `16 KiB` (`16384` bytes)
+
+If the file is missing or has the wrong size, the emulator falls back to the bundled open BIOS.
+(The open BIOS works for many titles, but some games are more reliable with the official one.)
+
+### PC Engine CD / TurboGrafx-CD
+
+PC Engine CD support is currently **beta** and available on **SD-card builds only** (not on flash-only builds).
+
+- Put disc images under: `/roms/pcecd/`
+  - Flat layout: `.cue` (+ referenced tracks) directly in `/roms/pcecd/`
+  - Or one folder per game: `/roms/pcecd/<game>/…`
+- HuCard games stay in `/roms/pce/` as usual
+
+A Super System Card 3.0 dump is **required**:
+
+- Path: `/bios/pce/syscard3.pce` (or `/bios/pce/syscard3.bin`)
+- Expected MD5: `38179df8f4ac870017db21ebcbf53114`
+
+Without this BIOS file, CD games will not boot.
+
+### Atari Lynx
+
+Lynx support is currently **experimental**.
+
+- Put ROMs in: `/roms/lynx/` (extensions: `.lnx`, `.lyx`)
+- No external BIOS file is required (the port uses an internal HLE BIOS)
 
 ## Controls
 
@@ -392,18 +443,13 @@ On MSX system, you can enable/disable cheats while playing. Just press the Pause
 
 ## NES Emulator
 
-NES emulation was done using nofrendo-go emulator, it doesn't have the best compatibility but has good performances.
-To handle eveything that is not or badly emulated by nofrendo, fceumm emulator has been ported too.
-fceumm has very good compatibility but it's using more CPU power, currently about 65-85% of CPU depending on games, disks games (FDS) are taking even more CPU power (about 95%).
-Due to the large amount of mappers supported by fceumm, it's not possible to embbed all mappers codes in the G&W memory, so the parsing proccess is listing mappers used by games in the rom/nes folder so only needed mappers are loaded in the G&W. If you are using too much different mappers in the games you have selected, you will have runtime problems. The maximum number of mappers you can use will depends on embedded mappers, but basically it should fit most needs.
+NES emulation uses **fceumm** (FCEUmm). It has very good compatibility but uses significant CPU: typically about 65–85% depending on games; FDS titles can reach about 95%.
 
 Mappers compatibility is basically the same as fceumm version from 01/01/2023. Testing all mappers is not possible, so some mappers that could try to allocate too much ram will probably crash. If you find any mapper that crash, please report on discord support, or by opening a ticket on github.
 
 As Game & Watch CPU is not able to emulate YM2413 at 48kHz, mapper 85 (VRC-7) sound will play at 18kHz instead of 48kHz.
 
 FDS support requires you to put the FDS firmware in `/bios/nes/disksys.rom` file
-
-Note that you can force nofrendo-go usage instead of fceumm by adding FORCE_NOFRENDO=1 option in your make command
 
 ## MSX Emulator
 
@@ -589,6 +635,50 @@ If the game requires to load other carts put them in a ".multicarts" subfolder. 
 If you want to have the official carts covers use the specific python toolpico8covers.py. More details in the [Tools](#tools) section.
 
 ## Developer info
+
+### Local build, flash, and SD-card workflow
+
+For development on macOS/Linux without Docker you need `arm-none-eabi-gcc` v10+ (tested against 15.2.rel1) and the Python `requirements.txt` (`python3 -m pip install -r requirements.txt`, which installs `gnwmanager`).
+
+#### One-time per-device setup
+
+The device needs SylverB's bootloader in bank 1, with Retro-Go-SD in bank 2. Without it, the firmware-update flow that creates the SD card directory tree (`/cores`, `/bios`, `/roms/homebrew`, …) cannot run.
+
+```bash
+# Install the bootloader to bank 1 (one-time):
+gnwmanager flash-bootloader bank1
+```
+
+The `Makefile` defaults `INTFLASH_BANK=2` to match that bootloader. Pass `make INTFLASH_BANK=1` only if you installed without it.
+
+#### First-time SD-card bootstrap
+
+A freshly formatted (exFAT or FAT32) SD card lacks the directories `sdpush` needs as parents; the bootloader creates them when it unpacks `retro-go_update.bin`:
+
+```bash
+make release_sdpush GNW_TARGET=mario
+```
+
+Wait for the launcher menu to appear on the device before running any other `gnwmanager` command, or the extraction is interrupted and aborted.
+
+#### Fast-iteration workflow
+
+Once the directory tree exists, flash the firmware and regenerate the SD content locally:
+
+```bash
+make flash create_sd_data GNW_TARGET=mario
+```
+
+`create_sd_data` writes the SD files under `sd_content/`. Push only the ones you changed instead of re-sending every core, e.g.:
+
+```bash
+gnwmanager sdpush --file sd_content/cores/nes.bin --dest-path /cores/
+```
+
+#### Common gotchas
+
+- **Debug-probe `BAD_DECOMPRESS`.** Some CMSIS-DAP probes drop LZMA chunks at gnwmanager's default speed. Lower it with `make GNWMANAGER="gnwmanager --frequency 1000000"`.
+- **Stale objects after toggling a `-D` flag.** Make doesn't track `-D` changes, so toggling `CHEAT_CODES`/`COVERFLOW`/etc. between builds mixes definitions and causes link errors. Run `make clean` when you change one.
 
 ### Build and flash using Docker
 

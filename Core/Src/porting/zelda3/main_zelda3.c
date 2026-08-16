@@ -327,24 +327,30 @@ static bool reset_cb(odroid_dialog_choice_t *option, odroid_dialog_event_t event
   return event == ODROID_DIALOG_ENTER;
 }
 
+/* Linker-defined start of .rodata_zelda3. NOT 0xCAFE0000 hardcoded — that
+ * happens to be correct today only because .rodata_zelda3 is first in the
+ * linker script's RODATA region, but is layout-dependent and would break
+ * silently if a port with rodata is ever added before zelda3. */
+extern void *__rodata_zelda3_start__[];
+
 /**
  * PatchCodeRodataOffset - Adjusts the code rodata offset in memory.
  * @rodata: Pointer to the rodata section in external flash.
  */
-#define RODATA_BASE   0xCAFE0000
 static void PatchCodeRodataOffset(uint8 *rodata, uint32_t rodata_length)
 {
   uint32_t *ptr = (uint32_t *)__RAM_EMU_START__;
   uint32_t *end = (uint32_t *)&_OVERLAY_ZELDA3_BSS_END;
 
-  int32_t offset = (uint32_t)rodata - RODATA_BASE;
+  uint32_t rodata_base = (uint32_t)__rodata_zelda3_start__;
+  int32_t offset = (uint32_t)rodata - rodata_base;
 
-  printf("rodata = %p offset = 0x%08lX\n", rodata, offset);
+  printf("rodata = %p base = 0x%08lX offset = 0x%08lX\n", rodata, rodata_base, offset);
   while (ptr < end) {
     if ((ptr < (uint32_t *)&_ZELDA3_MAIN_CODE_START) || (ptr > (uint32_t *)&_ZELDA3_MAIN_CODE_END)) {
       uint32_t value = *ptr;
 
-      if ((value >= RODATA_BASE) && (value < RODATA_BASE + rodata_length)) {
+      if ((value >= rodata_base) && (value < rodata_base + rodata_length)) {
           *ptr = value + offset;
           wdog_refresh();
       }
@@ -388,7 +394,7 @@ int app_main_zelda3(uint8_t load_state, uint8_t start_paused, int8_t save_slot)
   PatchCodeRodataOffset(zelda_rodata, zelda_rodata_length);
 
   odroid_system_init(APPID_ZELDA3, ZELDA3_AUDIO_SAMPLE_RATE);
-  odroid_system_emu_init(&zelda3_system_LoadState, &zelda3_system_SaveState, &Screenshot, NULL, NULL, &zelda3_system_SramSave);
+  odroid_system_emu_init(&zelda3_system_LoadState, &zelda3_system_SaveState, &Screenshot, NULL, NULL, &zelda3_system_SramSave, NULL);
   
   if (start_paused) {
     common_emu_state.pause_after_frames = 2;

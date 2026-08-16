@@ -1,7 +1,3 @@
-#if !defined (INCLUDED_JA_JP)
-#define INCLUDED_JA_JP 0
-#endif
-#if INCLUDED_JA_JP==1
 //#include "rg_i18n_lang.h"
 // Jp lang
 
@@ -20,12 +16,16 @@ int ja_jp_fmt_Time(char *outstr, const char *timefmt, uint16_t hour, uint16_t mi
     return sprintf(outstr, timefmt, hour, minutes, seconds);
 };
 
+// do not compile this part, it will be parsed by a script to create a bin file with language content
+#ifdef DO_NOT_COMPILE
 const lang_t lang_ja_jp LANG_DATA = {
     .codepage = 932,
     .s_LangUI = "言語",
     .s_LangName = "Japanese",
     // Core\Src\porting\gb\main_gb.c =======================================
     .s_Palette = "パレット",
+    .s_System = "システム",
+    .s_SGB_Border = "SGBボーダー",
     //=====================================================================
 
     // Core\Src\porting\nes-fceu\main_nes_fceu.c ===========================
@@ -83,10 +83,9 @@ const lang_t lang_ja_jp LANG_DATA = {
     .s_md_Synchro_Vsync = "VSYNC",
     .s_md_Dithering = "ディザリング",
     .s_md_Debug_bar = "デバッグバー",
-    .s_md_Option_ON = "\x6",
-    .s_md_Option_OFF = "\x5",
     .s_md_AudioFilter = "オーディオフィルター",
     .s_md_VideoUpscaler = "ビデオアップスケール",
+    .s_md_Region = "地域",
     //=====================================================================
     
     // Core\Src\porting\md\main_wsv.c ================================
@@ -144,6 +143,8 @@ const lang_t lang_ja_jp LANG_DATA = {
     //=====================================================================
 
     // Core\Src\porting\odroid_overlay.c ===================================
+    .s_Option_ON = "\x6",
+    .s_Option_OFF = "\x5",
     .s_Full = "\x7",
     .s_Fill = "\x8",
 
@@ -215,8 +216,6 @@ const lang_t lang_ja_jp LANG_DATA = {
 #if CHEAT_CODES == 1
     .s_Cheat_Codes = "チートコード",
     .s_Cheat_Codes_Title = "チートオプション",
-    .s_Cheat_Codes_ON = "\x6",
-    .s_Cheat_Codes_OFF = "\x5",
 #endif
 
     //=====================================================================
@@ -300,6 +299,7 @@ const lang_t lang_ja_jp LANG_DATA = {
     .s_Date_Format = "%02d.%02d.20%02d %s",
     .s_Time_Format = "%02d:%02d:%02d",
 
+    .s_favorite = "お気に入り",
     .fmt_Title_Date_Format = ja_jp_fmt_Title_Date_Format,
     .fmtDate = ja_jp_fmt_Date,
     .fmtTime = ja_jp_fmt_Time,

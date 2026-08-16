@@ -105,19 +105,23 @@ static uint8_t rom_memory[ROM_BUFF_LENGTH];
 
 static size_t getromdata(unsigned char **data) {
 #ifndef GNW_DISABLE_COMPRESSION
-    /* src pointer to the ROM data in the external flash (raw or LZ4) */
-    const unsigned char *src = ROM_DATA;
+#if SD_CARD == 1
+#error "Roms compression is not supported on SD Card"
+#else
+    uint32_t src_size = 0;
+    const unsigned char *src = odroid_overlay_cache_file_in_flash(ACTIVE_FILE->path, &src_size, false);
     unsigned char *dest = (unsigned char *)rom_memory;
 
-    if(strcmp(ROM_EXT, "lzma") == 0){
+    if(strcmp(ACTIVE_FILE->ext, "lzma") == 0){
         size_t n_decomp_bytes;
-        n_decomp_bytes = lzma_inflate(dest, ROM_BUFF_LENGTH, src, ROM_DATA_LENGTH);
+        n_decomp_bytes = lzma_inflate(dest, ROM_BUFF_LENGTH, src, src_size);
         *data = dest;
         return n_decomp_bytes;
     } else {
-        *data = (unsigned char *)ROM_DATA;
-        return ROM_DATA_LENGTH;
+        *data = (unsigned char *)src;
+        return src_size;
     }
+#endif
 #else
     uint32_t size = ACTIVE_FILE->size;
     if (size > (heap_free_mem())) {
@@ -369,7 +373,7 @@ static void app_main_a2600_cpp(uint8_t load_state, uint8_t start_paused, int8_t 
     common_emu_state.frame_time_10us = (uint16_t)(100000 / console->getFramerate() + 0.5f);
 
     odroid_system_init(APPID_A2600, AUDIO_A2600_SAMPLE_RATE);
-    odroid_system_emu_init(&LoadState, &SaveState, &Screenshot, NULL, NULL, NULL);
+    odroid_system_emu_init(&LoadState, &SaveState, &Screenshot, NULL, NULL, NULL, NULL);
 
     /* Set initial digital sensitivity */
     Paddles::setDigitalSensitivity(paddle_digital_sensitivity);
